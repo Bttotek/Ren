@@ -9,8 +9,8 @@ const SITE_NAME = "BTTOTEK Solutions";
 const BLOG_URL = `${SITE_URL}/blog`;
 
 export const Route = createFileRoute("/blog/$slug")({
-  loader: ({ params }) => {
-    const post = findPost(params.slug);
+  loader: async ({ params }) => {
+    const post = await findPost(params.slug);
 
     if (!post) {
       throw notFound();
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/blog/$slug")({
 
     const canonicalUrl = `${BLOG_URL}/${encodeURIComponent(post.slug)}`;
 
-    const articleTitle = `${post.title} | BTTOTEK Solutions`;
+    const articleTitle = `${post.seoTitle || post.title} | BTTOTEK Solutions`;
 
     const wordCount = post.body
       ?.join(" ")
@@ -115,7 +115,7 @@ export const Route = createFileRoute("/blog/$slug")({
         },
         {
           name: "description",
-          content: post.excerpt,
+          content: post.seoDescription || post.excerpt,
         },
         {
           name: "robots",
@@ -140,7 +140,7 @@ export const Route = createFileRoute("/blog/$slug")({
         },
         {
           property: "og:description",
-          content: post.excerpt,
+          content: post.seoDescription || post.excerpt,
         },
         {
           property: "og:url",
@@ -168,7 +168,7 @@ export const Route = createFileRoute("/blog/$slug")({
         },
         {
           name: "twitter:description",
-          content: post.excerpt,
+          content: post.seoDescription || post.excerpt,
         },
       ],
 
