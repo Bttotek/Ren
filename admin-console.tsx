@@ -28,10 +28,6 @@ import { TOOLS } from "@/lib/tools";
 import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import AdminCmsSettingsPanel from "@/components/admin-cms-settings-panel";
 
-function cn(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
 type Tab =
   | "dashboard"
   | "posts"
@@ -160,10 +156,6 @@ type PostRecord = {
   seo_description?: string | null;
   created_at?: string;
   updated_at?: string;
-  published_at?: string | null;
-  status?: string | null;
-  reading_time?: number | null;
-  cover_url?: string | null;
 };
 
 const slugify = (value: string) =>
@@ -1519,7 +1511,7 @@ function PostsPanel() {
     queryKey: ["admin_posts"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("posts")
+        .from("blog_posts")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -1530,10 +1522,10 @@ function PostsPanel() {
         title: post.title,
         slug: post.slug,
         excerpt: post.excerpt,
-        content: post.content,
-        body: post.content,
+        content: post.body,
+        body: post.body,
         published: post.published,
-        featured_image: post.featured_image || post.cover_url,
+        featured_image: post.cover_url,
         category: post.category,
         tags: post.tags,
         seo_title: post.seo_title,
@@ -1615,12 +1607,10 @@ function PostsPanel() {
       title: title.trim(),
       slug: finalSlug,
       excerpt: excerpt.trim() || null,
-      content: body.trim(),
+      body: body.trim(),
       published: isPublished,
       published_at: isPublished ? new Date().toISOString() : null,
-      status: isPublished ? "published" : "draft",
-      reading_time: Math.max(1, Math.ceil(stripHtml(body).split(/\s+/).filter(Boolean).length / 200)),
-      featured_image: featuredImage.trim() || null,
+      cover_url: featuredImage.trim() || null,
       category: category.trim() || "General",
       tags: tags
         .split(",")
@@ -1632,8 +1622,8 @@ function PostsPanel() {
     };
 
     const result = editId
-      ? await supabase.from("posts").update(payload).eq("id", editId)
-      : await supabase.from("posts").insert(payload);
+      ? await supabase.from("blog_posts").update(payload).eq("id", editId)
+      : await supabase.from("blog_posts").insert(payload);
 
     setSaving(false);
 
@@ -1659,7 +1649,7 @@ function PostsPanel() {
     if (!confirm("Delete this blog post permanently?")) return;
 
     const { error } = await supabase
-      .from("posts")
+      .from("blog_posts")
       .delete()
       .eq("id", id);
 
@@ -1675,7 +1665,7 @@ function PostsPanel() {
   async function togglePost(post: PostRecord) {
     const next = !post.published;
     const { error } = await supabase
-      .from("posts")
+      .from("blog_posts")
       .update({
         published: next,
         published_at: next ? new Date().toISOString() : null,
@@ -1942,7 +1932,7 @@ function PostsPanel() {
    DASHBOARD
 ============================================================ */
 
-function DashboardCount({ label, table }: { label: string; table: "profiles" | "posts" | "leads" | "tool_reviews" | "blog_comments" }) {
+function DashboardCount({ label, table }: { label: string; table: "profiles" | "blog_posts" | "leads" | "tool_reviews" | "blog_comments" }) {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-dashboard", table],
     queryFn: async () => {
@@ -2013,7 +2003,7 @@ function AdminDashboard() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <DashboardCount label="Users" table="profiles" />
-          <DashboardCount label="Blog Posts" table="posts" />
+          <DashboardCount label="Blog Posts" table="blog_posts" />
           <DashboardCount label="Leads" table="leads" />
           <DashboardCount label="Reviews" table="tool_reviews" />
           <DashboardCount label="Comments" table="blog_comments" />
