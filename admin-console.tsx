@@ -21,12 +21,14 @@ import {
   Upload,
   Image as ImageIcon,
   RefreshCw,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { TOOLS } from "@/lib/tools";
 import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import AdminCmsSettingsPanel from "@/components/admin-cms-settings-panel";
+import { cn } from "@/lib/utils";
 
 type Tab =
   | "dashboard"
