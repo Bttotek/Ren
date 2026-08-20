@@ -27,7 +27,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { TOOLS } from "@/lib/tools";
 import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import AdminCmsSettingsPanel from "@/components/admin-cms-settings-panel";
-import AdminDownloadControls from "@/components/admin-download-controls";
 
 type Tab =
   | "dashboard"
@@ -55,11 +54,14 @@ type Tab =
   | "appearance"
   | "adsense"
   | "analytics"
+  | "marketing"
   | "apps"
   | "users"
   | "security"
   | "backup"
   | "health"
+  | "notifications"
+  | "email"
   | "settings"
   | "cms";
 
@@ -98,8 +100,9 @@ const ADMIN_NAV: NavItem[] = [
 
   { id: "appearance", label: "Theme & Layout", section: "Appearance" },
 
-  { id: "adsense", label: "AdSense", section: "Monetization" },
-  { id: "analytics", label: "Analytics", section: "Analytics" },
+  { id: "adsense", label: "AdSense", section: "Marketing & Monetization" },
+  { id: "analytics", label: "Analytics", section: "Marketing & Monetization" },
+  { id: "marketing", label: "Marketing", section: "Marketing & Monetization" },
   { id: "apps", label: "Android Apps", section: "Apps" },
 
   { id: "users", label: "Users & Roles", section: "Security" },
@@ -107,6 +110,8 @@ const ADMIN_NAV: NavItem[] = [
 
   { id: "backup", label: "Backup / Restore", section: "System" },
   { id: "health", label: "System Health", section: "System" },
+  { id: "notifications", label: "Notifications", section: "Communication" },
+  { id: "email", label: "Email & Templates", section: "Communication" },
   { id: "cms", label: "CMS / Website Editor", section: "System" },
   { id: "settings", label: "General Settings", section: "System" },
 ];
@@ -559,6 +564,109 @@ function TemplateManager({ service }: { service: "pdf" | "excel" }) {
         </div>
         <div className="surface-panel p-5"><h3 className="font-semibold">Service controls</h3><p className="mt-1 text-sm text-muted-foreground">Global PDF/Excel free-vs-paid rules are managed from Download Services.</p><div className="mt-4 rounded-lg bg-secondary/50 p-4 text-sm"><div>Selected mode: <strong>{mode}</strong></div><div className="mt-1">Price: <strong>₹{Number(price || 0).toFixed(2)}</strong></div><div className="mt-1">Template: <strong>{name || "Untitled"}</strong></div></div></div>
       </div>
+    </div>
+  );
+}
+
+
+function DownloadsPanel() {
+  const [section, setSection] = useState<"overview" | "pdf" | "excel" | "rules" | "orders">("overview");
+  const [search, setSearch] = useState("");
+  const [access, setAccess] = useState<"all" | "free" | "paid">("all");
+  const [pdfMode, setPdfMode] = useState<"free" | "paid">("free");
+  const [excelMode, setExcelMode] = useState<"free" | "paid">("paid");
+  const [pdfPrice, setPdfPrice] = useState("0");
+  const [excelPrice, setExcelPrice] = useState("49");
+  const [loginRequired, setLoginRequired] = useState(true);
+  const [pdfDaily, setPdfDaily] = useState("3");
+  const [excelDaily, setExcelDaily] = useState("1");
+
+  const products = [
+    { id: "pdf-1", type: "PDF", name: "BBS Report Template", category: "BBS", access: pdfMode, price: pdfMode === "paid" ? pdfPrice : "0", downloads: "—", status: "Draft" },
+    { id: "pdf-2", type: "PDF", name: "Construction Estimate Report", category: "Estimation", access: "free", price: "0", downloads: "—", status: "Active" },
+    { id: "xls-1", type: "Excel", name: "Quantity Estimate Sheet", category: "Estimation", access: excelMode, price: excelMode === "paid" ? excelPrice : "0", downloads: "—", status: "Draft" },
+    { id: "xls-2", type: "Excel", name: "Rebar Schedule Workbook", category: "Structural", access: "paid", price: "99", downloads: "—", status: "Active" },
+  ];
+
+  const filtered = products.filter((p) => {
+    const matchesSearch = `${p.name} ${p.category}`.toLowerCase().includes(search.toLowerCase());
+    const matchesAccess = access === "all" || p.access === access;
+    return matchesSearch && matchesAccess;
+  });
+
+  return (
+    <div className="space-y-5">
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border bg-gradient-to-r from-accent/10 via-background to-background p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Downloads & Monetization</div>
+              <h2 className="mt-1 font-display text-2xl font-bold">Download Services</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Control downloadable PDF and Excel products, access rules, pricing and order workflow from one dedicated workspace.</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card px-4 py-3 text-right">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Phase 1</div>
+              <div className="mt-1 font-semibold">UI only</div>
+              <div className="text-xs text-muted-foreground">Backend connects later</div>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 border-b border-border md:grid-cols-5">
+          {[
+            ["overview", "Overview"], ["pdf", "PDF Manager"], ["excel", "Excel Manager"], ["rules", "Download Rules"], ["orders", "Orders"],
+          ].map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setSection(id as typeof section)} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors ${section === id ? "border-accent bg-accent/5 text-accent" : "border-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground"}`}>{label}</button>
+          ))}
+        </div>
+      </section>
+
+      {section === "overview" && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["PDF Downloads", "—", "Track after backend connection"],
+              ["Excel Downloads", "—", "Track after backend connection"],
+              ["Paid Downloads", "—", "Revenue analytics later"],
+              ["Revenue", "₹—", "Payment gateway later"],
+            ].map(([label, value, note]) => (
+              <div key={label} className="surface-panel p-4">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
+                <div className="mt-2 font-display text-2xl font-bold">{value}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{note}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_.6fr]">
+            <div className="surface-panel p-5">
+              <div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Product Catalog</h3><p className="text-xs text-muted-foreground">Preview of downloadable products.</p></div><button type="button" onClick={() => setSection("pdf")} className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">Manage products</button></div>
+              <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="pb-3">Product</th><th className="pb-3">Type</th><th className="pb-3">Access</th><th className="pb-3">Price</th><th className="pb-3">Status</th></tr></thead><tbody>{filtered.slice(0, 5).map((p) => <tr key={p.id} className="border-b border-border/70 last:border-0"><td className="py-3 font-medium">{p.name}</td><td className="py-3">{p.type}</td><td className="py-3"><StatusBadge status={p.access === "paid" ? "Paid" : "Free"} /></td><td className="py-3">₹{p.price}</td><td className="py-3"><StatusBadge status={p.status} /></td></tr>)}</tbody></table></div>
+            </div>
+            <div className="surface-panel p-5"><h3 className="font-semibold">Quick Actions</h3><div className="mt-4 grid gap-2"><button type="button" onClick={() => setSection("pdf")} className="rounded-lg border border-border p-3 text-left text-sm font-semibold hover:bg-secondary/60">+ Add PDF product</button><button type="button" onClick={() => setSection("excel")} className="rounded-lg border border-border p-3 text-left text-sm font-semibold hover:bg-secondary/60">+ Add Excel product</button><button type="button" onClick={() => setSection("rules")} className="rounded-lg border border-border p-3 text-left text-sm font-semibold hover:bg-secondary/60">Configure download rules</button></div></div>
+          </div>
+        </>
+      )}
+
+      {(section === "pdf" || section === "excel") && (
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
+          <section className="surface-panel p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">{section === "pdf" ? "PDF" : "Excel"}</div><h3 className="mt-1 font-display text-xl font-bold">{section === "pdf" ? "PDF Product Manager" : "Excel Product Manager"}</h3></div><button type="button" className="inline-flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"><Plus className="size-4" />Add product</button></div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center"><input className={fieldCls} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${section === "pdf" ? "PDF" : "Excel"} products...`} /><select className={fieldCls} value={access} onChange={(e) => setAccess(e.target.value as typeof access)}><option value="all">All access</option><option value="free">Free</option><option value="paid">Paid</option></select></div>
+            <div className="mt-4 space-y-2">{filtered.filter((p) => p.type.toLowerCase() === section).map((p) => <div key={p.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-semibold">{p.name}</div><div className="mt-1 text-xs text-muted-foreground">{p.category} · {p.downloads} downloads</div></div><div className="flex items-center gap-2"><StatusBadge status={p.access === "paid" ? "Paid" : "Free"} /><span className="text-sm font-bold">₹{p.price}</span></div></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold">Preview</button><button type="button" className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold">Edit</button><button type="button" className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold">Enable / Disable</button><button type="button" className="rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive">Delete</button></div></div>)}</div>
+          </section>
+          <section className="surface-panel p-5"><h3 className="font-semibold">Product Defaults</h3><p className="mt-1 text-xs text-muted-foreground">Preview the pricing/access policy before backend wiring.</p><div className="mt-4 space-y-4"><label className="grid gap-1"><span className={labelCls}>Access mode</span><select className={fieldCls} value={section === "pdf" ? pdfMode : excelMode} onChange={(e) => section === "pdf" ? setPdfMode(e.target.value as "free" | "paid") : setExcelMode(e.target.value as "free" | "paid")}><option value="free">Free</option><option value="paid">Paid</option></select></label><label className="grid gap-1"><span className={labelCls}>Price (₹)</span><input className={fieldCls} type="number" min="0" value={section === "pdf" ? pdfPrice : excelPrice} onChange={(e) => section === "pdf" ? setPdfPrice(e.target.value) : setExcelPrice(e.target.value)} /></label><div className="rounded-lg bg-secondary/60 p-4 text-sm"><div>Access: <strong>{(section === "pdf" ? pdfMode : excelMode).toUpperCase()}</strong></div><div className="mt-1">Price: <strong>₹{section === "pdf" ? pdfPrice : excelPrice}</strong></div></div></div></section>
+        </div>
+      )}
+
+      {section === "rules" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="surface-panel p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Access Policy</div><h3 className="mt-1 font-display text-xl font-bold">Download Rules</h3><p className="mt-1 text-sm text-muted-foreground">Central controls for free/paid downloads.</p><div className="mt-5 space-y-4"><label className="flex items-center justify-between rounded-lg border border-border p-4"><span><span className="block text-sm font-semibold">Login required</span><span className="text-xs text-muted-foreground">Users must sign in before downloading.</span></span><input type="checkbox" checked={loginRequired} onChange={(e) => setLoginRequired(e.target.checked)} /></label><div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1"><span className={labelCls}>PDF free downloads / day</span><input className={fieldCls} type="number" min="0" value={pdfDaily} onChange={(e) => setPdfDaily(e.target.value)} /></label><label className="grid gap-1"><span className={labelCls}>Excel free downloads / day</span><input className={fieldCls} type="number" min="0" value={excelDaily} onChange={(e) => setExcelDaily(e.target.value)} /></label></div><button type="button" onClick={() => toast.info("Download rules will connect in Phase 2.")} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground">Save rules</button></div></section>
+          <section className="surface-panel p-5"><h3 className="font-semibold">Policy Preview</h3><div className="mt-4 space-y-3"><div className="rounded-lg border border-border p-4"><div className="font-semibold">PDF</div><div className="mt-1 text-sm text-muted-foreground">Free limit: {pdfDaily}/day</div><div className="text-sm text-muted-foreground">Paid products: admin-defined price</div></div><div className="rounded-lg border border-border p-4"><div className="font-semibold">Excel</div><div className="mt-1 text-sm text-muted-foreground">Free limit: {excelDaily}/day</div><div className="text-sm text-muted-foreground">Paid products: admin-defined price</div></div><div className="rounded-lg bg-secondary/60 p-4 text-sm">Login required: <strong>{loginRequired ? "Yes" : "No"}</strong></div></div></section>
+        </div>
+      )}
+
+      {section === "orders" && (
+        <section className="surface-panel p-5"><div className="flex items-center justify-between"><div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Payments</div><h3 className="mt-1 font-display text-xl font-bold">Orders</h3><p className="mt-1 text-sm text-muted-foreground">Payment/order workspace ready for Phase 2 gateway connection.</p></div><StatusBadge status="Not connected" /></div><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="pb-3">Order ID</th><th className="pb-3">User</th><th className="pb-3">Product</th><th className="pb-3">Amount</th><th className="pb-3">Status</th><th className="pb-3">Date</th></tr></thead><tbody><tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">No orders yet — payment gateway will populate this table in Phase 2.</td></tr></tbody></table></div></section>
+      )}
     </div>
   );
 }
@@ -1967,11 +2075,770 @@ function AdminDashboard() {
   );
 }
 
+
+/* ============================================================
+   USERS & ROLES — DEDICATED UI
+   Phase 1: presentation/workflow only. Backend/RLS connects in Phase 2.
+============================================================ */
+
+type AdminUserRow = {
+  id: string;
+  name: string;
+  email: string;
+  provider: "Email" | "Google";
+  role: "User" | "Editor" | "Admin" | "Super Admin";
+  status: "Active" | "Disabled";
+  joined: string;
+  lastActive: string;
+  downloads: number;
+};
+
+const DEMO_ADMIN_USERS: AdminUserRow[] = [
+  {
+    id: "USR-001",
+    name: "Demo User",
+    email: "user@example.com",
+    provider: "Google",
+    role: "User",
+    status: "Active",
+    joined: "20 Aug 2026",
+    lastActive: "Today",
+    downloads: 12,
+  },
+  {
+    id: "USR-002",
+    name: "Content Editor",
+    email: "editor@example.com",
+    provider: "Email",
+    role: "Editor",
+    status: "Active",
+    joined: "18 Aug 2026",
+    lastActive: "Today",
+    downloads: 4,
+  },
+];
+
+function UsersPanel() {
+  const [section, setSection] = useState<"users" | "roles" | "activity">("users");
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<"all" | "Active" | "Disabled">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | AdminUserRow["role"]>("all");
+  const [selected, setSelected] = useState<AdminUserRow | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return DEMO_ADMIN_USERS.filter((user) => {
+      const matchesQuery =
+        !q ||
+        user.name.toLowerCase().includes(q) ||
+        user.email.toLowerCase().includes(q) ||
+        user.id.toLowerCase().includes(q);
+      const matchesStatus = status === "all" || user.status === status;
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      return matchesQuery && matchesStatus && matchesRole;
+    });
+  }, [query, status, roleFilter]);
+
+  const roles = [
+    {
+      name: "Super Admin",
+      description: "Full control including security, roles, settings and system operations.",
+      color: "bg-destructive/10 text-destructive",
+      permissions: "Everything",
+    },
+    {
+      name: "Admin",
+      description: "Manage users, content, tools, downloads, SEO and analytics.",
+      color: "bg-accent/10 text-accent",
+      permissions: "Most modules",
+    },
+    {
+      name: "Editor",
+      description: "Manage posts, pages, FAQs, media and reviews without security access.",
+      color: "bg-secondary text-foreground",
+      permissions: "Content",
+    },
+    {
+      name: "User",
+      description: "Normal website account. Never receives Admin Console access.",
+      color: "bg-muted text-muted-foreground",
+      permissions: "Website only",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Security workspace</div>
+            <h2 className="mt-1 font-display text-2xl font-bold tracking-tight">Users & Roles</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Manage website accounts and administrator permissions from a dedicated security interface.
+              Database authorization and RLS will be connected in Phase 2.
+            </p>
+          </div>
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-xs">
+            <div className="font-semibold text-emerald-700">Admin boundary</div>
+            <div className="mt-1 text-muted-foreground">Normal users cannot access this console.</div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Total users", "—", "Connects to profiles"],
+            ["Active users", "—", "Current status"],
+            ["Admins", "—", "Admin + Super Admin"],
+            ["Disabled", "—", "Access blocked"],
+          ].map(([label, value, note]) => (
+            <div key={label} className="rounded-xl border border-border bg-background p-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+              <div className="mt-2 text-2xl font-bold">{value}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{note}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+        {[
+          ["users", "All Users"],
+          ["roles", "Roles & Permissions"],
+          ["activity", "User Activity"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setSection(value as typeof section)}
+            className={
+              section === value
+                ? "rounded-lg bg-foreground px-4 py-2 text-xs font-semibold text-background"
+                : "rounded-lg border border-border bg-card px-4 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {section === "users" && (
+        <section className="rounded-2xl border border-border bg-card shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="font-semibold">User directory</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Search, filter and inspect account details.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => toast.info("User creation will be connected in Phase 2.")}
+              className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground"
+            >
+              + Add user
+            </button>
+          </div>
+
+          <div className="grid gap-2 border-b border-border p-4 md:grid-cols-[1fr_auto_auto]">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, email or user ID…"
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as typeof status)}
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="all">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Disabled">Disabled</option>
+            </select>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="all">All roles</option>
+              <option>User</option>
+              <option>Editor</option>
+              <option>Admin</option>
+              <option>Super Admin</option>
+            </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Login</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Joined</th>
+                  <th className="px-4 py-3">Last active</th>
+                  <th className="px-4 py-3">Downloads</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((user) => (
+                  <tr key={user.id} className="border-b border-border/70 last:border-0 hover:bg-muted/20">
+                    <td className="px-4 py-4">
+                      <div className="font-medium">{user.name}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{user.email}</div>
+                      <div className="mt-1 text-[10px] text-muted-foreground">{user.id}</div>
+                    </td>
+                    <td className="px-4 py-4 text-xs">{user.provider}</td>
+                    <td className="px-4 py-4">
+                      <span className="rounded-full border border-border px-2 py-1 text-[10px] font-semibold">{user.role}</span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-700">{user.status}</span>
+                    </td>
+                    <td className="px-4 py-4 text-xs text-muted-foreground">{user.joined}</td>
+                    <td className="px-4 py-4 text-xs text-muted-foreground">{user.lastActive}</td>
+                    <td className="px-4 py-4 font-semibold">{user.downloads}</td>
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setSelected(user)}
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-muted"
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {!filtered.length && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      No users match the current filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {section === "roles" && (
+        <section className="grid gap-4 lg:grid-cols-2">
+          {roles.map((role) => (
+            <div key={role.name} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${role.color}`}>{role.name}</span>
+                  <h3 className="mt-4 font-semibold">{role.permissions}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => toast.info("Role permissions will be connected in Phase 2.")}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold"
+                >
+                  Configure
+                </button>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{role.description}</p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                {["Dashboard", "Content", "Tools", "Downloads", "SEO", "Analytics", "Security", "Settings"].map((permission) => (
+                  <div key={permission} className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs">
+                    <span>{permission}</span>
+                    <span className={role.name === "User" && permission !== "Dashboard" ? "text-muted-foreground" : "font-semibold text-emerald-600"}>
+                      {role.name === "User" && permission !== "Dashboard" ? "No" : "Yes"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {section === "activity" && (
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div>
+            <h3 className="font-semibold">User activity</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Login, download, profile and account events will appear here after backend connection.</p>
+          </div>
+          <div className="mt-5 space-y-2">
+            {[
+              ["Today", "User signed in with Google", "Authentication"],
+              ["Today", "PDF download requested", "Downloads"],
+              ["Yesterday", "Profile created", "Users"],
+            ].map(([time, event, source]) => (
+              <div key={`${time}-${event}`} className="flex flex-col gap-2 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-medium">{event}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{source}</div>
+                </div>
+                <span className="text-xs text-muted-foreground">{time}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-xl">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">User detail</div>
+                <h3 className="mt-1 text-xl font-bold">{selected.name}</h3>
+                <p className="text-sm text-muted-foreground">{selected.email}</p>
+              </div>
+              <button type="button" onClick={() => setSelected(null)} className="rounded-lg p-2 hover:bg-muted" aria-label="Close">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {[
+                ["User ID", selected.id],
+                ["Login", selected.provider],
+                ["Role", selected.role],
+                ["Status", selected.status],
+                ["Joined", selected.joined],
+                ["Downloads", String(selected.downloads)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-border bg-background p-3">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+                  <div className="mt-1 text-sm font-semibold">{value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" onClick={() => toast.info("Status changes connect in Phase 2.")} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">
+                Disable / Enable
+              </button>
+              <button type="button" onClick={() => toast.info("Role changes connect in Phase 2.")} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">
+                Change role
+              </button>
+              <button type="button" onClick={() => toast.info("User deletion connects in Phase 2.")} className="rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-destructive-foreground">
+                Delete user
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   ANALYTICS / MARKETING / ADSENSE — PHASE 1 UI
+============================================================ */
+
+function AnalyticsPanel() {
+  const [range, setRange] = useState<"7d" | "30d" | "90d">("30d");
+  const [view, setView] = useState<"traffic" | "content" | "tools" | "downloads">("traffic");
+  const metrics = [
+    ["Visitors", "—", "Connects to analytics source"],
+    ["Sessions", "—", "Connects in Phase 2"],
+    ["Page views", "—", "Connects in Phase 2"],
+    ["Conversions", "—", "Downloads / leads / signups"],
+  ];
+  const bars = [48, 64, 38, 72, 56, 82, 66, 91, 58, 76, 68, 88];
+  return <div className="space-y-6">
+    <section className="surface-panel overflow-hidden">
+      <div className="border-b border-border bg-gradient-to-r from-accent/10 via-background to-background p-5 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Analytics workspace</div><h2 className="mt-1 font-display text-2xl font-bold">Website Analytics</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Monitor traffic, content, tools, downloads and conversions from one reporting workspace.</p></div>
+          <div className="flex flex-wrap gap-2"><div className="inline-flex rounded-lg border border-border bg-background p-1">{(["7d","30d","90d"] as const).map(r => <button key={r} type="button" onClick={() => setRange(r)} className={cn("rounded-md px-3 py-1.5 text-xs font-semibold", range === r ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-secondary")}>{r === "7d" ? "7 days" : r === "30d" ? "30 days" : "90 days"}</button>)}</div><button type="button" onClick={() => toast.info("Analytics data connects in Phase 2.")} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">Refresh</button></div>
+        </div>
+      </div>
+    </section>
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(([label,value,note]) => <div key={label} className="surface-panel p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</div><div className="mt-2 font-display text-2xl font-bold">{value}</div><div className="mt-1 text-xs text-muted-foreground">{note}</div></div>)}</section>
+    <section className="grid gap-4 lg:grid-cols-[1.5fr_.5fr]">
+      <div className="surface-panel p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Activity trend</h3><p className="text-xs text-muted-foreground">Visual placeholder for the connected analytics series.</p></div><span className="rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider">{range}</span></div><div className="mt-6 flex h-56 items-end gap-2 rounded-xl border border-border bg-background p-4">{bars.map((h,i)=><div key={i} className="flex-1 rounded-t-md bg-accent/60" style={{height:`${h}%`}} />)}</div></div>
+      <div className="surface-panel p-5"><h3 className="font-semibold">Reporting views</h3><div className="mt-4 grid gap-2">{[["traffic","Traffic"],["content","Top Content"],["tools","Tool Usage"],["downloads","Downloads"]].map(([id,label])=><button key={id} type="button" onClick={()=>setView(id as typeof view)} className={cn("rounded-lg border px-3 py-3 text-left text-xs font-semibold",view===id?"border-accent bg-accent/5 text-accent":"border-border hover:bg-secondary")}>{label}</button>)}</div><div className="mt-5 rounded-xl bg-secondary/50 p-4 text-xs text-muted-foreground">Selected report: <strong className="text-foreground">{view}</strong></div></div>
+    </section>
+    <section className="grid gap-4 lg:grid-cols-3">{[["Top pages","/","/tools","/blog"],["Devices","Mobile","Desktop","Tablet"],["Acquisition","Organic","Direct","Social"]].map(([title,a,b,c])=><div key={title} className="surface-panel p-5"><h3 className="font-semibold">{title}</h3><div className="mt-4 space-y-2 text-sm"><div className="flex justify-between rounded-lg bg-secondary/50 px-3 py-2"><span>{a}</span><span className="text-muted-foreground">—</span></div><div className="flex justify-between rounded-lg bg-secondary/50 px-3 py-2"><span>{b}</span><span className="text-muted-foreground">—</span></div><div className="flex justify-between rounded-lg bg-secondary/50 px-3 py-2"><span>{c}</span><span className="text-muted-foreground">—</span></div></div></div>)}</section>
+  </div>;
+}
+
+function AdsensePanel() {
+  const [enabled, setEnabled] = useState(true);
+  const [autoAds, setAutoAds] = useState(false);
+  const [testMode, setTestMode] = useState(true);
+  const [publisherId, setPublisherId] = useState("");
+  const [placements, setPlacements] = useState([
+    { id: "header", name: "Header", type: "Display", status: true },
+    { id: "article", name: "Article", type: "In-content", status: true },
+    { id: "tool", name: "Calculator", type: "In-tool", status: false },
+    { id: "footer", name: "Footer", type: "Display", status: false },
+  ]);
+  return <div className="space-y-6">
+    <section className="surface-panel p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Monetization workspace</div><h2 className="mt-1 font-display text-2xl font-bold">Google AdSense</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Configure publisher identity, ad behavior and individual website placements. Actual AdSense API/reporting connects later.</p></div><label className="flex items-center gap-3 rounded-xl border border-border px-4 py-3 text-xs font-semibold"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)} /> Ads enabled</label></div></section>
+    <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+      <div className="surface-panel p-5"><h3 className="font-semibold">Publisher settings</h3><div className="mt-4 space-y-3"><label className="block"><span className="text-xs font-medium text-muted-foreground">Publisher ID</span><input value={publisherId} onChange={e=>setPublisherId(e.target.value)} placeholder="ca-pub-xxxxxxxxxxxxxxxx" className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm" /></label><label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm"><span>Auto ads</span><input type="checkbox" checked={autoAds} onChange={e=>setAutoAds(e.target.checked)} /></label><label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm"><span>Test mode</span><input type="checkbox" checked={testMode} onChange={e=>setTestMode(e.target.checked)} /></label><button type="button" onClick={()=>toast.success("AdSense UI settings ready for Phase 2 connection.")} className="w-full rounded-lg bg-accent px-4 py-2.5 text-xs font-semibold text-accent-foreground">Save configuration</button></div></div>
+      <div className="surface-panel p-5"><h3 className="font-semibold">Ad performance</h3><div className="mt-4 grid grid-cols-2 gap-3">{[["Impressions","—"],["Clicks","—"],["CTR","—"],["Estimated revenue","₹—"]].map(([l,v])=><div key={l} className="rounded-xl border border-border bg-background p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{l}</div><div className="mt-2 text-xl font-bold">{v}</div></div>)}</div><p className="mt-4 text-xs text-muted-foreground">Live numbers will be populated after the AdSense/analytics connection.</p></div>
+    </section>
+    <section className="surface-panel overflow-hidden"><div className="border-b border-border p-5"><h3 className="font-semibold">Placement manager</h3><p className="mt-1 text-xs text-muted-foreground">Control where ads are allowed to appear.</p></div><div className="divide-y divide-border">{placements.map(p=><div key={p.id} className="grid gap-3 p-4 md:grid-cols-[1fr_140px_100px_auto] md:items-center"><div><div className="font-medium">{p.name}</div><div className="text-xs text-muted-foreground">{p.type}</div></div><span className="rounded-full bg-secondary px-2 py-1 text-center text-[10px] font-semibold">{p.status?"Enabled":"Disabled"}</span><button type="button" onClick={()=>setPlacements(v=>v.map(x=>x.id===p.id?{...x,status:!x.status}:x))} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">{p.status?"Disable":"Enable"}</button><button type="button" onClick={()=>toast.info(`${p.name} placement editor connects in Phase 2.`)} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">Edit</button></div>)}</div></section>
+  </div>;
+}
+
+function MarketingPanel() {
+  const [sharing, setSharing] = useState(true);
+  const [utm, setUtm] = useState("newsletter");
+  const campaigns = [
+    ["Website launch", "Organic + Social", "Active"],
+    ["Download services", "PDF / Excel", "Draft"],
+    ["Calculator growth", "Tools", "Planned"],
+  ];
+  return <div className="space-y-6">
+    <section className="surface-panel p-5 sm:p-6"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Growth workspace</div><h2 className="mt-1 font-display text-2xl font-bold">Marketing</h2><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Manage sharing, campaigns, UTM tracking and conversion goals without mixing marketing controls into SEO or general settings.</p></div><label className="flex items-center gap-3 rounded-xl border border-border px-4 py-3 text-xs font-semibold"><input type="checkbox" checked={sharing} onChange={e=>setSharing(e.target.checked)} /> Social sharing enabled</label></div></section>
+    <section className="grid gap-4 lg:grid-cols-2"><div className="surface-panel p-5"><h3 className="font-semibold">Campaign manager</h3><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[520px] text-left text-sm"><thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground"><tr><th className="pb-3">Campaign</th><th className="pb-3">Channel</th><th className="pb-3">Status</th></tr></thead><tbody>{campaigns.map(c=><tr key={c[0]} className="border-b border-border/70 last:border-0"><td className="py-3 font-medium">{c[0]}</td><td className="py-3 text-xs">{c[1]}</td><td className="py-3"><span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold">{c[2]}</span></td></tr>)}</tbody></table></div><button type="button" onClick={()=>toast.info("Campaign creation connects in Phase 2.")} className="mt-4 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground">+ New campaign</button></div>
+    <div className="surface-panel p-5"><h3 className="font-semibold">UTM builder</h3><div className="mt-4 grid gap-3"><input placeholder="Campaign source — google, facebook, newsletter" className="rounded-lg border border-input bg-background px-3 py-2 text-sm" /><input placeholder="Campaign medium — cpc, social, email" className="rounded-lg border border-input bg-background px-3 py-2 text-sm" /><input value={utm} onChange={e=>setUtm(e.target.value)} placeholder="Campaign name" className="rounded-lg border border-input bg-background px-3 py-2 text-sm" /><div className="rounded-lg bg-secondary/50 p-3 text-xs break-all">https://bttotek.in/?utm_campaign={encodeURIComponent(utm)}</div><button type="button" onClick={()=>navigator.clipboard?.writeText(`https://bttotek.in/?utm_campaign=${encodeURIComponent(utm)}`)} className="rounded-lg border border-border px-4 py-2 text-xs font-semibold">Copy campaign URL</button></div></div></section>
+    <section className="grid gap-4 lg:grid-cols-3">{[["Social sharing","Open Graph, share buttons and previews"],["Conversions","Signup, lead and download goals"],["Referrals","Traffic sources and partner links"]].map(([t,d])=><div key={t} className="surface-panel p-5"><div className="text-sm font-semibold">{t}</div><p className="mt-2 text-xs leading-5 text-muted-foreground">{d}</p><button type="button" onClick={()=>toast.info(`${t} configuration connects in Phase 2.`)} className="mt-4 rounded-lg border border-border px-3 py-2 text-xs font-semibold">Configure</button></div>)}</section>
+  </div>;
+}
+
+/* ============================================================
+   ANDROID APPS WORKSPACE
+============================================================ */
+
+function AppsPanel() {
+  const [appName, setAppName] = useState("BTTOTEK Solutions");
+  const [packageName, setPackageName] = useState("com.bttotek.solutions");
+  const [version, setVersion] = useState("1.0.0");
+  const [versionCode, setVersionCode] = useState("1");
+  const [playUrl, setPlayUrl] = useState("");
+  const [apkUrl, setApkUrl] = useState("");
+  const [releaseNotes, setReleaseNotes] = useState("");
+  const [status, setStatus] = useState<"Draft" | "Published" | "Disabled">("Draft");
+  const [showOnSite, setShowOnSite] = useState(true);
+  const [autoUpdateNotice, setAutoUpdateNotice] = useState(true);
+
+  const releases = [
+    { version: "1.0.0", code: "1", status: "Draft", date: "—", notes: "Initial release" },
+    { version: "0.9.0", code: "9", status: "Archived", date: "—", notes: "Beta build" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border bg-gradient-to-r from-accent/10 via-background to-background p-5 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Apps workspace</div>
+              <h2 className="mt-1 font-display text-2xl font-bold tracking-tight">Android Apps</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                Manage app identity, versions, Play Store links, APK distribution and release notes from one dedicated workspace.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold">Phase 1 UI</span>
+              <span className="rounded-full border border-amber-500/20 bg-amber-500/5 px-3 py-1.5 text-xs font-semibold text-amber-700">Backend later</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["App status", status, "Publishing state"],
+            ["Current version", version || "—", `Version code ${versionCode || "—"}`],
+            ["Play Store", playUrl ? "Configured" : "Not configured", "Public store listing"],
+            ["APK download", apkUrl ? "Configured" : "Not configured", "Direct distribution"],
+          ].map(([label, value, note]) => (
+            <div key={label} className="rounded-xl border border-border bg-background p-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+              <div className="mt-2 truncate text-lg font-bold">{value}</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">{note}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[1.35fr_.65fr]">
+        <section className="surface-panel p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="font-display text-xl font-bold">App identity & release</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Keep store identity and release metadata together.</p>
+            </div>
+            <button type="button" onClick={() => toast.success("App configuration saved for Phase 2 connection.")} className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-xs font-semibold text-accent-foreground">
+              <Save className="size-3.5" /> Save
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="block sm:col-span-2"><span className="text-xs font-semibold text-muted-foreground">App name</span><input value={appName} onChange={e=>setAppName(e.target.value)} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm" /></label>
+            <label className="block sm:col-span-2"><span className="text-xs font-semibold text-muted-foreground">Package name</span><input value={packageName} onChange={e=>setPackageName(e.target.value)} placeholder="com.company.app" className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 font-mono text-sm" /></label>
+            <label className="block"><span className="text-xs font-semibold text-muted-foreground">Version</span><input value={version} onChange={e=>setVersion(e.target.value)} placeholder="1.0.0" className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm" /></label>
+            <label className="block"><span className="text-xs font-semibold text-muted-foreground">Version code</span><input value={versionCode} onChange={e=>setVersionCode(e.target.value)} placeholder="1" className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm" /></label>
+            <label className="block sm:col-span-2"><span className="text-xs font-semibold text-muted-foreground">Google Play Store URL</span><input value={playUrl} onChange={e=>setPlayUrl(e.target.value)} placeholder="https://play.google.com/store/apps/details?id=..." className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm" /></label>
+            <label className="block sm:col-span-2"><span className="text-xs font-semibold text-muted-foreground">APK / direct download URL</span><input value={apkUrl} onChange={e=>setApkUrl(e.target.value)} placeholder="https://.../app-release.apk" className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm" /></label>
+            <label className="block sm:col-span-2"><span className="text-xs font-semibold text-muted-foreground">Release notes</span><textarea value={releaseNotes} onChange={e=>setReleaseNotes(e.target.value)} rows={5} placeholder="What's new in this version?" className="mt-1 w-full resize-y rounded-lg border border-input bg-background px-3 py-2.5 text-sm" /></label>
+            <label className="block"><span className="text-xs font-semibold text-muted-foreground">Release status</span><select value={status} onChange={e=>setStatus(e.target.value as typeof status)} className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm"><option>Draft</option><option>Published</option><option>Disabled</option></select></label>
+          </div>
+        </section>
+
+        <section className="surface-panel p-5 sm:p-6">
+          <h3 className="font-display text-xl font-bold">Website app controls</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Control how the app is promoted on the public site.</p>
+          <div className="mt-5 space-y-3">
+            <label className="flex items-center justify-between gap-4 rounded-xl border border-border p-4 text-sm"><span><strong>Show app on website</strong><span className="mt-1 block text-xs text-muted-foreground">Allow app badges and download links.</span></span><input type="checkbox" checked={showOnSite} onChange={e=>setShowOnSite(e.target.checked)} /></label>
+            <label className="flex items-center justify-between gap-4 rounded-xl border border-border p-4 text-sm"><span><strong>Show update notice</strong><span className="mt-1 block text-xs text-muted-foreground">Display a new-version prompt when configured.</span></span><input type="checkbox" checked={autoUpdateNotice} onChange={e=>setAutoUpdateNotice(e.target.checked)} /></label>
+          </div>
+          <div className="mt-5 rounded-xl border border-dashed border-border bg-secondary/30 p-4 text-xs text-muted-foreground">
+            <div className="font-semibold text-foreground">Phase 2 connection</div>
+            <p className="mt-1 leading-5">Play Store verification, APK storage, release history and update notifications will connect after the Admin UI is finalized.</p>
+          </div>
+        </section>
+      </div>
+
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border p-5"><h3 className="font-display text-xl font-bold">Release history</h3><p className="mt-1 text-sm text-muted-foreground">Every app release will remain auditable.</p></div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm"><thead><tr className="border-b border-border bg-secondary/30 text-left text-xs text-muted-foreground"><th className="px-5 py-3">Version</th><th className="px-5 py-3">Code</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Release date</th><th className="px-5 py-3">Notes</th><th className="px-5 py-3">Action</th></tr></thead><tbody>{releases.map(r=><tr key={r.version} className="border-b border-border last:border-0"><td className="px-5 py-4 font-semibold">{r.version}</td><td className="px-5 py-4 font-mono text-xs">{r.code}</td><td className="px-5 py-4"><span className="rounded-full border border-border px-2.5 py-1 text-xs">{r.status}</span></td><td className="px-5 py-4 text-muted-foreground">{r.date}</td><td className="px-5 py-4 text-muted-foreground">{r.notes}</td><td className="px-5 py-4"><button type="button" onClick={()=>toast.info(`Release ${r.version} selected.`)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-secondary">View</button></td></tr>)}</tbody></table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+
+function BackupPanel() {
+  const [schedule, setSchedule] = useState("Daily");
+  const [retention, setRetention] = useState("30");
+  const [autoBackup, setAutoBackup] = useState(true);
+  const [encrypt, setEncrypt] = useState(true);
+
+  const backups = [
+    { id: "BK-2026-0819-01", type: "Automatic", date: "Today, 02:00", size: "184 MB", status: "Completed" },
+    { id: "BK-2026-0818-01", type: "Automatic", date: "Yesterday, 02:00", size: "181 MB", status: "Completed" },
+    { id: "BK-2026-0817-01", type: "Manual", date: "17 Aug, 18:42", size: "179 MB", status: "Completed" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-4">
+        {[
+          ["Last backup", "Today, 02:00", "Healthy"],
+          ["Backup size", "184 MB", "Latest snapshot"],
+          ["Retention", `${retention} days`, "Policy"],
+          ["Encryption", encrypt ? "Enabled" : "Disabled", "At-rest protection"],
+        ].map(([title, value, note]) => (
+          <section key={title} className="surface-panel p-5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+            <div className="mt-2 text-2xl font-bold">{value}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{note}</div>
+          </section>
+        ))}
+      </div>
+
+      <section className="surface-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div><h2 className="font-display text-xl font-bold">Backup policy</h2><p className="mt-1 text-sm text-muted-foreground">Control how often snapshots are expected and how long the admin records are retained.</p></div>
+          <button type="button" onClick={() => toast.success("Manual backup request queued for Phase 2 connection.")} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Create backup</button>
+        </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <label className="space-y-2"><span className={labelCls}>Backup schedule</span><select className={fieldCls} value={schedule} onChange={e=>setSchedule(e.target.value)}><option>Every 6 hours</option><option>Daily</option><option>Weekly</option></select></label>
+          <label className="space-y-2"><span className={labelCls}>Retention days</span><input className={fieldCls} type="number" min="1" value={retention} onChange={e=>setRetention(e.target.value)} /></label>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          <label className="flex items-center justify-between rounded-xl border border-border p-4"><div><div className="text-sm font-semibold">Automatic backups</div><div className="text-xs text-muted-foreground">Keep the schedule enabled.</div></div><input type="checkbox" checked={autoBackup} onChange={e=>setAutoBackup(e.target.checked)} /></label>
+          <label className="flex items-center justify-between rounded-xl border border-border p-4"><div><div className="text-sm font-semibold">Encrypt backups</div><div className="text-xs text-muted-foreground">Recommended for stored snapshots.</div></div><input type="checkbox" checked={encrypt} onChange={e=>setEncrypt(e.target.checked)} /></label>
+        </div>
+        <div className="mt-5 rounded-xl border border-dashed border-border bg-secondary/30 p-4 text-xs text-muted-foreground"><strong className="text-foreground">Phase 2:</strong> actual Supabase/database backup, storage snapshots and restore operations will be connected after UI approval.</div>
+      </section>
+
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border p-5"><h3 className="font-display text-lg font-bold">Backup history</h3><p className="mt-1 text-sm text-muted-foreground">Recent snapshots and restore entry points.</p></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b border-border bg-secondary/30 text-xs text-muted-foreground"><th className="px-5 py-3">Backup ID</th><th className="px-5 py-3">Type</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Size</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Action</th></tr></thead><tbody>{backups.map(b=><tr key={b.id} className="border-b border-border last:border-0"><td className="px-5 py-4 font-mono text-xs">{b.id}</td><td className="px-5 py-4">{b.type}</td><td className="px-5 py-4 text-muted-foreground">{b.date}</td><td className="px-5 py-4">{b.size}</td><td className="px-5 py-4"><StatusBadge status={b.status}/></td><td className="px-5 py-4 text-right"><button type="button" onClick={()=>toast.info(`${b.id} restore will be connected in Phase 2.`)} className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold">Restore</button></td></tr>)}</tbody></table></div>
+      </section>
+    </div>
+  );
+}
+
+function HealthPanel() {
+  const services = [
+    ["Website", "Operational", "99.99%"],
+    ["Supabase / Database", "Operational", "99.98%"],
+    ["Authentication", "Operational", "99.99%"],
+    ["Storage", "Operational", "99.97%"],
+    ["Download service", "Operational", "99.95%"],
+    ["Analytics", "Monitoring", "98.90%"],
+  ];
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-4">
+        <section className="surface-panel p-5"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Overall health</div><div className="mt-2 flex items-center gap-2 text-2xl font-bold"><span className="size-3 rounded-full bg-emerald-500"/>Healthy</div><div className="mt-1 text-xs text-muted-foreground">All critical services responding.</div></section>
+        <section className="surface-panel p-5"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Response time</div><div className="mt-2 text-2xl font-bold">182 ms</div><div className="mt-1 text-xs text-muted-foreground">Current average</div></section>
+        <section className="surface-panel p-5"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Errors</div><div className="mt-2 text-2xl font-bold">3</div><div className="mt-1 text-xs text-muted-foreground">Last 24 hours</div></section>
+        <section className="surface-panel p-5"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Uptime</div><div className="mt-2 text-2xl font-bold">99.98%</div><div className="mt-1 text-xs text-muted-foreground">Last 30 days</div></section>
+      </div>
+
+      <section className="surface-panel overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-5"><div><h2 className="font-display text-xl font-bold">Service health</h2><p className="mt-1 text-sm text-muted-foreground">Operational overview of the systems that power the site.</p></div><button type="button" onClick={()=>toast.success("Health check refreshed.")} className="rounded-lg border border-border px-3 py-2 text-sm font-semibold">Refresh</button></div>
+        <div className="divide-y divide-border">{services.map(([name,status,uptime])=><div key={name} className="flex flex-wrap items-center justify-between gap-3 p-5"><div><div className="font-semibold">{name}</div><div className="mt-1 text-xs text-muted-foreground">Uptime {uptime}</div></div><div className="flex items-center gap-3"><StatusBadge status={status}/><span className="text-xs text-muted-foreground">Live monitor</span></div></div>)}</div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="surface-panel p-5"><h3 className="font-display text-lg font-bold">Performance thresholds</h3><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="space-y-2"><span className={labelCls}>Latency warning (ms)</span><input className={fieldCls} type="number" defaultValue="800" /></label><label className="space-y-2"><span className={labelCls}>Error threshold</span><input className={fieldCls} type="number" defaultValue="5" /></label></div></section>
+        <section className="surface-panel p-5"><h3 className="font-display text-lg font-bold">Maintenance</h3><p className="mt-1 text-sm text-muted-foreground">Control the public maintenance state from the system settings workflow.</p><label className="mt-5 flex items-center justify-between rounded-xl border border-border p-4"><div><div className="text-sm font-semibold">Maintenance mode</div><div className="text-xs text-muted-foreground">Keep disabled during normal operation.</div></div><input type="checkbox" onChange={e=>toast.info(e.target.checked ? "Maintenance mode marked for Phase 2." : "Maintenance mode disabled.")} /></label></section>
+      </div>
+
+      <div className="rounded-xl border border-dashed border-border bg-secondary/30 p-4 text-xs text-muted-foreground"><strong className="text-foreground">Phase 2:</strong> real health probes, database latency, storage checks, API monitoring and error telemetry will connect here.</div>
+    </div>
+  );
+}
+
 /* ============================================================
    ADMIN CONSOLE
 ============================================================ */
 
-export function AdminConsole() {
+export 
+function NotificationsPanel() {
+  const [enabled, setEnabled] = useState(true);
+  const [security, setSecurity] = useState(true);
+  const [downloads, setDownloads] = useState(true);
+  const [payments, setPayments] = useState(true);
+  const [system, setSystem] = useState(true);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+
+  const rows = [
+    { title: "Security alert", detail: "New admin login detected", time: "2 min ago", type: "Security", on: security },
+    { title: "Download activity", detail: "Paid PDF download completed", time: "18 min ago", type: "Downloads", on: downloads },
+    { title: "Payment received", detail: "Order #ORD-1048 marked paid", time: "42 min ago", type: "Payment", on: payments },
+    { title: "System notice", detail: "Scheduled maintenance reminder", time: "1 hr ago", type: "System", on: system },
+  ];
+
+  const visible = rows.filter((r) => r.on && (!unreadOnly || r.type !== "System"));
+
+  return (
+    <div className="space-y-6">
+      <section className="surface-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Communication</div>
+            <h2 className="mt-1 font-display text-2xl font-bold">Notification Center</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Control admin alerts and notification categories without mixing them with email delivery settings.</p>
+          </div>
+          <label className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm font-semibold">
+            Notifications
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          </label>
+        </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        {[
+          ["Unread", "8", "Needs attention"],
+          ["Security", "3", "High priority"],
+          ["Downloads", "21", "Last 24 hours"],
+          ["System", "4", "Operational"],
+        ].map(([a,b,c]) => <section key={a} className="surface-panel p-5"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{a}</div><div className="mt-2 text-2xl font-bold">{b}</div><div className="mt-1 text-xs text-muted-foreground">{c}</div></section>)}
+      </div>
+
+      <section className="surface-panel p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-display text-xl font-bold">Notification preferences</h3><p className="mt-1 text-sm text-muted-foreground">Enable only the alerts that should appear in the admin notification center.</p></div>
+          <label className="flex items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} /> Unread only</label>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {[
+            ["Security alerts", security, setSecurity],
+            ["Download alerts", downloads, setDownloads],
+            ["Payment alerts", payments, setPayments],
+            ["System alerts", system, setSystem],
+          ].map(([label, value, setter]) => (
+            <label key={label as string} className="flex items-center justify-between rounded-xl border border-border p-4">
+              <span className="font-semibold">{label as string}</span>
+              <input type="checkbox" checked={value as boolean} onChange={(e) => (setter as (v: boolean) => void)(e.target.checked)} />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border p-5"><h3 className="font-display text-xl font-bold">Recent notifications</h3></div>
+        <div className="divide-y divide-border">
+          {enabled && visible.map((r) => <div key={r.title} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><div className="font-semibold">{r.title}</div><div className="text-sm text-muted-foreground">{r.detail}</div></div><div className="text-right"><StatusBadge status={r.type} /><div className="mt-1 text-xs text-muted-foreground">{r.time}</div></div></div>)}
+          {(!enabled || !visible.length) && <div className="p-8 text-center text-sm text-muted-foreground">No notifications to display.</div>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function EmailPanel() {
+  const [provider, setProvider] = useState("SMTP");
+  const [senderName, setSenderName] = useState("BTTOTEK");
+  const [senderEmail, setSenderEmail] = useState("noreply@example.com");
+  const [host, setHost] = useState("smtp.example.com");
+  const [port, setPort] = useState("587");
+  const [secure, setSecure] = useState(true);
+  const [testEmail, setTestEmail] = useState("");
+
+  const templates = [
+    ["Signup", "Welcome / account verification", true],
+    ["Password reset", "Reset password link", true],
+    ["Download", "Free or paid download confirmation", true],
+    ["Payment", "Payment receipt and order status", true],
+    ["Admin alert", "Security and system alerts", true],
+  ];
+
+  return (
+    <div className="space-y-6">
+      <section className="surface-panel p-5">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Communication</div>
+        <h2 className="mt-1 font-display text-2xl font-bold">Email & Templates</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Keep delivery configuration, sender identity and transactional templates in one dedicated workspace.</p>
+      </section>
+
+      <section className="surface-panel p-5">
+        <h3 className="font-display text-xl font-bold">Delivery configuration</h3>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="space-y-2"><span className={labelCls}>Provider</span><select className={fieldCls} value={provider} onChange={(e) => setProvider(e.target.value)}><option>SMTP</option><option>Resend</option><option>SendGrid</option><option>Other API</option></select></label>
+          <label className="space-y-2"><span className={labelCls}>Sender name</span><input className={fieldCls} value={senderName} onChange={(e) => setSenderName(e.target.value)} /></label>
+          <label className="space-y-2"><span className={labelCls}>Sender email</span><input type="email" className={fieldCls} value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} /></label>
+          <label className="space-y-2"><span className={labelCls}>SMTP host / API endpoint</span><input className={fieldCls} value={host} onChange={(e) => setHost(e.target.value)} /></label>
+          <label className="space-y-2"><span className={labelCls}>Port</span><input className={fieldCls} value={port} onChange={(e) => setPort(e.target.value)} /></label>
+          <label className="flex items-center gap-3 rounded-lg border border-border px-4 py-3 text-sm font-semibold"><input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} /> TLS / secure delivery</label>
+        </div>
+        <div className="mt-5 rounded-xl border border-dashed border-border bg-secondary/30 p-4 text-xs text-muted-foreground">Credentials must be stored server-side. Do not expose SMTP passwords or provider API keys in this admin UI.</div>
+      </section>
+
+      <section className="surface-panel p-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div><h3 className="font-display text-xl font-bold">Test delivery</h3><p className="mt-1 text-sm text-muted-foreground">Phase 1 only: UI action. Actual provider delivery connects in Phase 2.</p></div>
+          <div className="flex w-full max-w-md gap-2"><input type="email" className={fieldCls} placeholder="test@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} /><button type="button" onClick={() => toast.success(testEmail ? `Test email queued for ${testEmail}.` : "Enter a test email first.")} className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground">Send test</button></div>
+        </div>
+      </section>
+
+      <section className="surface-panel overflow-hidden">
+        <div className="border-b border-border p-5"><h3 className="font-display text-xl font-bold">Transactional templates</h3></div>
+        <div className="divide-y divide-border">{templates.map(([name, desc, active]) => <div key={name} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><div className="font-semibold">{name} email</div><div className="text-sm text-muted-foreground">{desc}</div></div><div className="flex items-center gap-3"><StatusBadge status={active ? "Active" : "Disabled"} /><button type="button" onClick={() => toast.info(`${name} template editor will connect in Phase 2.`)} className="rounded-md border border-border px-3 py-2 text-xs font-semibold">Edit</button></div></div>)}</div>
+      </section>
+    </div>
+  );
+}
+
+function GeneralSettingsPanel() {
+  const [siteName, setSiteName] = useState("BTTOTEK");
+  const [support, setSupport] = useState("support@example.com");
+  const [timezone, setTimezone] = useState("Asia/Kolkata");
+  const [currency, setCurrency] = useState("INR");
+  const [language, setLanguage] = useState("English");
+  const [maintenance, setMaintenance] = useState(false);
+  const [signup, setSignup] = useState(true);
+  const [publicIndex, setPublicIndex] = useState(true);
+
+  return (
+    <div className="space-y-6">
+      <section className="surface-panel p-5"><div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">System</div><h2 className="mt-1 font-display text-2xl font-bold">General Settings</h2><p className="mt-1 text-sm text-muted-foreground">Core website identity, regional defaults, access controls and operational switches.</p></section>
+      <section className="surface-panel p-5"><h3 className="font-display text-xl font-bold">Website identity</h3><div className="mt-5 grid gap-4 md:grid-cols-2"><label className="space-y-2"><span className={labelCls}>Website name</span><input className={fieldCls} value={siteName} onChange={(e) => setSiteName(e.target.value)} /></label><label className="space-y-2"><span className={labelCls}>Support email</span><input type="email" className={fieldCls} value={support} onChange={(e) => setSupport(e.target.value)} /></label><label className="space-y-2"><span className={labelCls}>Logo URL</span><input className={fieldCls} placeholder="https://..." /></label><label className="space-y-2"><span className={labelCls}>Favicon URL</span><input className={fieldCls} placeholder="https://..." /></label></div></section>
+      <section className="surface-panel p-5"><h3 className="font-display text-xl font-bold">Regional defaults</h3><div className="mt-5 grid gap-4 md:grid-cols-3"><label className="space-y-2"><span className={labelCls}>Timezone</span><select className={fieldCls} value={timezone} onChange={(e) => setTimezone(e.target.value)}><option>Asia/Kolkata</option><option>UTC</option><option>Asia/Dubai</option></select></label><label className="space-y-2"><span className={labelCls}>Currency</span><select className={fieldCls} value={currency} onChange={(e) => setCurrency(e.target.value)}><option>INR</option><option>USD</option><option>EUR</option></select></label><label className="space-y-2"><span className={labelCls}>Language</span><select className={fieldCls} value={language} onChange={(e) => setLanguage(e.target.value)}><option>English</option><option>Hindi</option></select></label></div></section>
+      <section className="surface-panel p-5"><h3 className="font-display text-xl font-bold">Access & operations</h3><div className="mt-5 grid gap-3 md:grid-cols-3">{[["Maintenance mode", maintenance, setMaintenance],["User signup", signup, setSignup],["Public indexing", publicIndex, setPublicIndex]].map(([label,value,setter]) => <label key={label as string} className="flex items-center justify-between rounded-xl border border-border p-4"><span className="font-semibold">{label as string}</span><input type="checkbox" checked={value as boolean} onChange={(e) => (setter as (v:boolean)=>void)(e.target.checked)} /></label>)}</div></section>
+      <section className="surface-panel p-5"><h3 className="font-display text-xl font-bold">Configuration groups</h3><div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 mt-4">{["Social URLs","Footer / Play Store","SEO defaults","Cookie & Privacy","Downloads & Pricing","Ads / AdSense"].map((x) => <button type="button" key={x} onClick={() => toast.info(`${x} workspace is managed separately.`)} className="rounded-xl border border-border p-4 text-left font-semibold hover:bg-secondary">{x}<div className="mt-1 text-xs font-normal text-muted-foreground">Open dedicated module</div></button>)}</div></section>
+      <div className="flex justify-end"><button type="button" onClick={() => toast.success("General settings saved for Phase 2 connection.")} className="rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground">Save settings</button></div>
+    </div>
+  );
+}
+
+function AdminConsole() {
   const [tab, setTab] =
     useState<Tab>("dashboard");
 
@@ -2021,7 +2888,37 @@ export function AdminConsole() {
         return <LayoutPanel />;
 
       case "downloads":
-        return <AdminDownloadControls />;
+        return <DownloadsPanel />;
+
+      case "analytics":
+        return <AnalyticsPanel />;
+
+      case "adsense":
+        return <AdsensePanel />;
+
+      case "marketing":
+        return <MarketingPanel />;
+
+      case "apps":
+        return <AppsPanel />;
+
+      case "backup":
+        return <BackupPanel />;
+
+      case "health":
+        return <HealthPanel />;
+
+      case "notifications":
+        return <NotificationsPanel />;
+
+      case "email":
+        return <EmailPanel />;
+
+      case "settings":
+        return <GeneralSettingsPanel />;
+
+      case "users":
+        return <UsersPanel />;
 
       case "excel":
         return <TemplateManager service="excel" />;
@@ -2895,5 +3792,7 @@ function CommentsPanel() {
   async function remove(row: any) { if (!window.confirm("Delete this comment?")) return; const { error } = await supabase.from("blog_comments").delete().eq("id", row.id); if (error) toast.error(error.message); else void qc.invalidateQueries({ queryKey: ["admin_comments"] }); }
   return <div className="space-y-5"><section className="surface-panel p-5"><h2 className="font-display text-xl font-bold">Comment Moderation</h2><p className="mt-1 text-sm text-muted-foreground">Review blog comments, publish good comments and remove spam.</p></section><div className="surface-panel overflow-hidden">{isLoading ? <div className="p-8 text-center text-sm text-muted-foreground">Loading comments...</div> : !data?.length ? <div className="p-8 text-center text-sm text-muted-foreground">No comments yet.</div> : <div className="divide-y divide-border">{data.map((c: any) => <div key={c.id} className="grid gap-3 p-4 md:grid-cols-[1fr_120px_auto_auto] md:items-center"><div><div className="font-semibold">{c.author_name} <span className="font-normal text-muted-foreground">({c.author_email})</span></div><div className="text-xs text-muted-foreground">/blog/{c.post_slug} · {new Date(c.created_at).toLocaleString()}</div><p className="mt-1 text-sm">{c.body}</p></div><StatusBadge status={c.approved ? "Approved" : "Pending"}/><button type="button" onClick={() => void toggle(c)} className="rounded-md border border-border px-3 py-2 text-xs font-semibold">{c.approved ? "Hide" : "Approve"}</button><button type="button" onClick={() => void remove(c)} className="grid size-8 place-items-center rounded-md border border-border hover:text-destructive"><Trash2 className="size-4"/></button></div>)}</div>}</div></div>;
 }
+
+export { AdminConsole };
 
 export default AdminConsole;
