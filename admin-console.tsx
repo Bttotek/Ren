@@ -27,7 +27,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { TOOLS } from "@/lib/tools";
 import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import AdminCmsSettingsPanel from "@/components/admin-cms-settings-panel";
-import AdminDownloadControls from "@/components/admin-download-controls";
 
 type Tab =
   | "dashboard"
@@ -142,11 +141,8 @@ type PostRecord = {
   excerpt?: string | null;
   content?: string | null;
   body?: string | null;
-  status?: string | null;
   published?: boolean | null;
-  published_at?: string | null;
   featured_image?: string | null;
-  cover_url?: string | null;
   category?: string | null;
   tags?: string | string[] | null;
   seo_title?: string | null;
@@ -276,20 +272,9 @@ function RichTextEditor({
   const [report, setReport] = useState(() => qualityReport(value));
 
   useEffect(() => {
-    if (!ref.current) return;
-
-    // Do not rewrite the contentEditable DOM while the user is editing.
-    // Replacing innerHTML during a parent re-render can reset the caret/focus
-    // and, especially on mobile, can make text appear to disappear when
-    // switching between the title and body fields.
-    const isEditing = document.activeElement === ref.current;
-    if (!isEditing) {
-      const next = editorInitialHtml(value);
-      if (ref.current.innerHTML !== next) {
-        ref.current.innerHTML = next;
-      }
-    }
-
+    if (!ref.current || document.activeElement === ref.current) return;
+    const next = editorInitialHtml(value);
+    if (ref.current.innerHTML !== next) ref.current.innerHTML = next;
     setReport(qualityReport(value));
   }, [value]);
 
@@ -546,7 +531,7 @@ function FullModuleEditor({
           </p>
         </div>
 
-        <button type="button"
+        <button
           onClick={handleSave}
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
@@ -1430,7 +1415,7 @@ function PostsPanel() {
     queryKey: ["admin_posts"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("posts")
+        .from("blog_posts")
         .select("*")
         .order("created_at", { ascending: false });
 
@@ -1441,13 +1426,10 @@ function PostsPanel() {
         title: post.title,
         slug: post.slug,
         excerpt: post.excerpt,
-        content: post.content,
-        body: post.content,
-        status: post.status,
+        content: post.body,
+        body: post.body,
         published: post.published,
-        published_at: post.published_at,
         featured_image: post.cover_url,
-        cover_url: post.cover_url,
         category: post.category,
         tags: post.tags,
         seo_title: post.seo_title,
@@ -1506,7 +1488,7 @@ function PostsPanel() {
     setTags(Array.isArray(post.tags) ? post.tags.join(", ") : post.tags || "");
     setSeoTitle(post.seo_title || "");
     setSeoDescription(post.seo_description || "");
-    setPublished((post.status || (post.published ? "published" : "draft")) === "published");
+    setPublished(post.published !== false);
     setMode("editor");
   }
 
@@ -1525,15 +1507,13 @@ function PostsPanel() {
     setSaving(true);
 
     const isPublished = forcePublished ?? published;
-    const now = new Date().toISOString();
     const payload = {
       title: title.trim(),
       slug: finalSlug,
       excerpt: excerpt.trim() || null,
-      content: body.trim(),
-      status: isPublished ? "published" : "draft",
+      body: body.trim(),
       published: isPublished,
-      published_at: isPublished ? now : null,
+      published_at: isPublished ? new Date().toISOString() : null,
       cover_url: featuredImage.trim() || null,
       category: category.trim() || "General",
       tags: tags
@@ -1542,12 +1522,12 @@ function PostsPanel() {
         .filter(Boolean),
       seo_title: seoTitle.trim() || null,
       seo_description: seoDescription.trim() || null,
-      updated_at: now,
+      updated_at: new Date().toISOString(),
     };
 
     const result = editId
-      ? await supabase.from("posts").update(payload).eq("id", editId)
-      : await supabase.from("posts").insert(payload);
+      ? await supabase.from("blog_posts").update(payload).eq("id", editId)
+      : await supabase.from("blog_posts").insert(payload);
 
     setSaving(false);
 
@@ -1573,7 +1553,7 @@ function PostsPanel() {
     if (!confirm("Delete this blog post permanently?")) return;
 
     const { error } = await supabase
-      .from("posts")
+      .from("blog_posts")
       .delete()
       .eq("id", id);
 
@@ -1587,15 +1567,13 @@ function PostsPanel() {
   }
 
   async function togglePost(post: PostRecord) {
-    const next = (post.status || (post.published ? "published" : "draft")) !== "published";
-    const now = new Date().toISOString();
+    const next = !post.published;
     const { error } = await supabase
-      .from("posts")
+      .from("blog_posts")
       .update({
-        status: next ? "published" : "draft",
         published: next,
-        published_at: next ? now : null,
-        updated_at: now,
+        published_at: next ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
       })
       .eq("id", post.id);
 
@@ -1642,9 +1620,8 @@ function PostsPanel() {
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={saving}
-              onClick={() => void savePost(false)}
-              className="rounded-md border border-border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+              onClick={() => setPublished(false)}
+              className="rounded-md border border-border px-3 py-2 text-sm font-semibold"
             >
               Save Draft
             </button>
@@ -1680,7 +1657,7 @@ function PostsPanel() {
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5">
-              <div className="grid gap-1">
+              <label className="grid gap-1">
                 <span className={labelCls}>Post Content</span>
                 <RichTextEditor
                   label="Post Content"
@@ -1689,7 +1666,7 @@ function PostsPanel() {
                   placeholder="Write your article here..."
                   minHeight={520}
                 />
-              </div>
+              </label>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-5">
@@ -1746,9 +1723,8 @@ function PostsPanel() {
                 </button>
                 <button
                   type="button"
-                  disabled={saving}
-                  onClick={() => void savePost(!published)}
-                  className="w-full rounded-md border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                  onClick={() => setPublished(!published)}
+                  className="w-full rounded-md border border-border px-4 py-2 text-sm font-semibold"
                 >
                   {published ? "Move to Draft" : "Publish Post"}
                 </button>
@@ -1955,10 +1931,6 @@ export function AdminConsole() {
 
       case "cms":
         return <AdminCmsSettingsPanel />;
-
-      case "excel":
-      case "pdf":
-        return <AdminDownloadControls />;
 
       default:
         return (
@@ -2707,7 +2679,7 @@ function PagesPanel() {
           />
 
           <div className="flex flex-wrap gap-2">
-            <button type="button"
+            <button
               onClick={createPage}
               className="w-fit rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground"
             >
@@ -2858,7 +2830,7 @@ function FaqsPanel() {
           />
 
           <div className="flex flex-wrap gap-2">
-            <button type="button"
+            <button
               onClick={createFaq}
               className="w-fit rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground"
             >
@@ -2988,7 +2960,7 @@ function IconDelete({
   onClick: () => void;
 }) {
   return (
-    <button type="button"
+    <button
       onClick={onClick}
       className="grid size-8 place-items-center rounded-md border border-border text-muted-foreground hover:text-destructive"
     >
