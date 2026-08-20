@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TOOLS } from "@/lib/tools";
 import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import AdminCmsSettingsPanel from "@/components/admin-cms-settings-panel";
+import AdminDownloadControls from "@/components/admin-download-controls";
 
 type Tab =
   | "dashboard"
@@ -42,6 +43,7 @@ type Tab =
   | "live-sheet"
   | "excel"
   | "pdf"
+  | "downloads"
   | "seo"
   | "keywords"
   | "content-quality"
@@ -83,6 +85,7 @@ const ADMIN_NAV: NavItem[] = [
   { id: "measurement", label: "Measurement", section: "Tools" },
   { id: "live-sheet", label: "Live Sheet Builder", section: "Tools" },
 
+  { id: "downloads", label: "Download Services", section: "Downloads" },
   { id: "excel", label: "Excel Templates", section: "Downloads" },
   { id: "pdf", label: "PDF Templates", section: "Downloads" },
 
@@ -94,7 +97,6 @@ const ADMIN_NAV: NavItem[] = [
   { id: "redirects", label: "Redirects / 404", section: "SEO" },
 
   { id: "appearance", label: "Theme & Layout", section: "Appearance" },
-  { id: "social", label: "Social Media", section: "Appearance" },
 
   { id: "adsense", label: "AdSense", section: "Monetization" },
   { id: "analytics", label: "Analytics", section: "Analytics" },
@@ -452,168 +454,154 @@ function RichTextEditor({
   );
 }
 
-function FullModuleEditor({
-  title,
-  tabKey,
-}: {
-  title: string;
-  tabKey: string;
-}) {
-  const [config, setConfig] = useState({
-    heading: "",
-    subheading: "",
-    customCode: "",
-    status: "Active",
-  });
+type ModuleField = { key: string; label: string; placeholder: string; type?: "text" | "url" | "number" };
 
-  const [loading, setLoading] = useState(false);
+const MODULE_FIELDS: Record<string, { intro: string; fields: ModuleField[] }> = {
+  seo: { intro: "Search visibility, metadata and indexing controls.", fields: [
+    { key: "siteTitle", label: "Default SEO title", placeholder: "BTTOTEK Solutions" },
+    { key: "description", label: "Default meta description", placeholder: "Construction calculators, BBS and practical tools." },
+    { key: "canonical", label: "Canonical base URL", placeholder: "https://www.bttotek.in", type: "url" },
+  ] },
+  keywords: { intro: "Track target keywords and the pages they belong to.", fields: [
+    { key: "provider", label: "Rank provider", placeholder: "Manual / Search Console" },
+    { key: "defaultCountry", label: "Country", placeholder: "India" },
+    { key: "refreshHours", label: "Refresh interval (hours)", placeholder: "24", type: "number" },
+  ] },
+  "content-quality": { intro: "Editorial quality thresholds used before publishing.", fields: [
+    { key: "minWords", label: "Minimum words", placeholder: "800", type: "number" },
+    { key: "minHeadings", label: "Minimum headings", placeholder: "3", type: "number" },
+    { key: "requireSeo", label: "Require SEO fields", placeholder: "true" },
+  ] },
+  "internal-links": { intro: "Manage internal-linking targets and audits.", fields: [
+    { key: "minLinks", label: "Recommended internal links", placeholder: "3", type: "number" },
+    { key: "scanPath", label: "Primary content path", placeholder: "/blog" },
+  ] },
+  sitemap: { intro: "Control sitemap and robots behavior.", fields: [
+    { key: "sitemapEnabled", label: "Sitemap enabled", placeholder: "true" },
+    { key: "robotsMode", label: "Robots mode", placeholder: "index,follow" },
+  ] },
+  redirects: { intro: "Keep legacy URLs and 404 handling under control.", fields: [
+    { key: "notFoundMode", label: "404 behavior", placeholder: "Custom 404" },
+    { key: "redirectPolicy", label: "Redirect policy", placeholder: "301" },
+  ] },
+  social: { intro: "Social sharing identity and outbound profiles.", fields: [
+    { key: "facebook", label: "Facebook URL", placeholder: "https://facebook.com/...", type: "url" },
+    { key: "instagram", label: "Instagram URL", placeholder: "https://instagram.com/...", type: "url" },
+    { key: "youtube", label: "YouTube URL", placeholder: "https://youtube.com/...", type: "url" },
+  ] },
+  adsense: { intro: "Advertising configuration and placement status.", fields: [
+    { key: "publisherId", label: "Publisher ID", placeholder: "ca-pub-..." },
+    { key: "autoAds", label: "Auto ads", placeholder: "false" },
+    { key: "testMode", label: "Test mode", placeholder: "true" },
+  ] },
+  analytics: { intro: "Traffic and product analytics configuration.", fields: [
+    { key: "gaId", label: "Google Analytics ID", placeholder: "G-..." },
+    { key: "searchConsole", label: "Search Console verification", placeholder: "Verification token" },
+  ] },
+  apps: { intro: "Android app distribution and release information.", fields: [
+    { key: "playStoreUrl", label: "Play Store URL", placeholder: "https://play.google.com/...", type: "url" },
+    { key: "latestVersion", label: "Latest version", placeholder: "1.0.0" },
+    { key: "releaseNotes", label: "Release notes", placeholder: "What's new" },
+  ] },
+  users: { intro: "User-account policy. Admin role assignment remains database protected.", fields: [
+    { key: "signupEnabled", label: "Signup enabled", placeholder: "true" },
+    { key: "emailConfirmation", label: "Email confirmation", placeholder: "true" },
+  ] },
+  security: { intro: "Security policy and audit preferences.", fields: [
+    { key: "sessionHours", label: "Session duration (hours)", placeholder: "24", type: "number" },
+    { key: "auditEnabled", label: "Audit logging", placeholder: "true" },
+  ] },
+  backup: { intro: "Backup policy metadata. Actual database backups remain a Supabase infrastructure responsibility.", fields: [
+    { key: "schedule", label: "Backup schedule", placeholder: "Daily" },
+    { key: "retentionDays", label: "Retention days", placeholder: "30", type: "number" },
+  ] },
+  health: { intro: "System health thresholds and operational notes.", fields: [
+    { key: "latencyWarnMs", label: "Latency warning (ms)", placeholder: "800", type: "number" },
+    { key: "healthEndpoint", label: "Health endpoint", placeholder: "/api/health" },
+  ] },
+  settings: { intro: "General website settings not covered by the visual layout editor.", fields: [
+    { key: "supportEmail", label: "Support email", placeholder: "support@bttotek.in" },
+    { key: "timezone", label: "Timezone", placeholder: "Asia/Kolkata" },
+    { key: "currency", label: "Currency", placeholder: "INR" },
+  ] },
+  bbs: { intro: "BBS Pro-specific defaults and calculation presentation.", fields: [
+    { key: "steelUnitWeightFormula", label: "Steel unit-weight formula", placeholder: "d²/162" },
+    { key: "defaultCoverMm", label: "Default cover (mm)", placeholder: "40", type: "number" },
+  ] },
+  measurement: { intro: "Measurement tool defaults and unit presentation.", fields: [
+    { key: "defaultUnit", label: "Default unit", placeholder: "m" },
+    { key: "precision", label: "Decimal precision", placeholder: "2", type: "number" },
+  ] },
+  "live-sheet": { intro: "Live Sheet Builder defaults and export behavior.", fields: [
+    { key: "autosave", label: "Autosave", placeholder: "true" },
+    { key: "exportFormat", label: "Default export", placeholder: "xlsx" },
+  ] },
+};
 
-  useEffect(() => {
-    async function loadConfig() {
-      setLoading(true);
-
-      const { data } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", `module_${tabKey}`)
-        .maybeSingle();
-
-      if (data?.value) {
-        setConfig(data.value);
-      } else {
-        setConfig({
-          heading: `${title} Module`,
-          subheading: `Configuration for ${title} on bttotek.in`,
-          customCode: "",
-          status: "Active",
-        });
-      }
-
-      setLoading(false);
-    }
-
-    loadConfig();
-  }, [tabKey, title]);
-
-  async function handleSave() {
-    setLoading(true);
-
-    const { error } = await supabase
-      .from("site_settings")
-      .upsert(
-        {
-          key: `module_${tabKey}`,
-          value: config,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "key" },
-      );
-
-    setLoading(false);
-
-    if (error) {
-      toast.error("Failed to save: " + error.message);
-    } else {
-      toast.success(`${title} settings updated & live!`);
-    }
-  }
-
+function TemplateManager({ service }: { service: "pdf" | "excel" }) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("0");
+  const [mode, setMode] = useState<"free" | "paid">("free");
   return (
-    <div className="space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-        <div>
-          <h2 className="font-display text-xl font-bold">
-            {title} Control Panel
-          </h2>
-
-          <p className="text-xs text-muted-foreground">
-            Manage layout, texts, and active configurations for {title}.
-          </p>
+    <div className="space-y-5">
+      <section className="surface-panel p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Downloads</div><h2 className="mt-1 font-display text-xl font-bold">{service === "pdf" ? "PDF Template Manager" : "Excel Template Manager"}</h2><p className="mt-1 text-sm text-muted-foreground">Manage this file type as a product: title, price and access mode.</p></div>
+          <FileText className="size-5 text-muted-foreground" />
         </div>
-
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
-        >
-          {loading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Save className="size-4" />
-          )}
-
-          Save Changes
-        </button>
+      </section>
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+        <div className="surface-panel space-y-4 p-5">
+          <label className="grid gap-1"><span className={labelCls}>Template name</span><input className={fieldCls} value={name} onChange={(e) => setName(e.target.value)} placeholder={service === "pdf" ? "BBS PDF Report" : "Quantity Estimate Excel"} /></label>
+          <label className="grid gap-1"><span className={labelCls}>Access mode</span><select className={fieldCls} value={mode} onChange={(e) => setMode(e.target.value as "free" | "paid")}><option value="free">Free</option><option value="paid">Paid</option></select></label>
+          <label className="grid gap-1"><span className={labelCls}>Price (₹)</span><input type="number" min="0" className={fieldCls} value={price} onChange={(e) => setPrice(e.target.value)} /></label>
+          <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">Template catalog UI is ready. File upload/product storage should be connected to the protected storage bucket before publishing a paid product.</div>
+        </div>
+        <div className="surface-panel p-5"><h3 className="font-semibold">Service controls</h3><p className="mt-1 text-sm text-muted-foreground">Global PDF/Excel free-vs-paid rules are managed from Download Services.</p><div className="mt-4 rounded-lg bg-secondary/50 p-4 text-sm"><div>Selected mode: <strong>{mode}</strong></div><div className="mt-1">Price: <strong>₹{Number(price || 0).toFixed(2)}</strong></div><div className="mt-1">Template: <strong>{name || "Untitled"}</strong></div></div></div>
       </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className={labelCls}>Display Title</span>
-
-          <input
-            value={config.heading}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                heading: e.target.value,
-              })
-            }
-            className={fieldCls + " mt-1"}
-          />
-        </label>
-
-        <label className="block">
-          <span className={labelCls}>Status / Mode</span>
-
-          <select
-            value={config.status}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                status: e.target.value,
-              })
-            }
-            className={fieldCls + " mt-1"}
-          >
-            <option value="Active">Active & Live</option>
-            <option value="Maintenance">Maintenance Mode</option>
-            <option value="Disabled">Disabled</option>
-          </select>
-        </label>
-      </div>
-
-      <RichTextEditor
-        label="Subheading / Description"
-        value={config.subheading}
-        onChange={(value) =>
-          setConfig({ ...config, subheading: value })
-        }
-        placeholder={`Write ${title} content...`}
-        minHeight={260}
-      />
-
-      <label className="block">
-        <span className={labelCls}>
-          Custom Content / Layout Data / JSON
-        </span>
-
-        <textarea
-          value={config.customCode}
-          onChange={(e) =>
-            setConfig({
-              ...config,
-              customCode: e.target.value,
-            })
-          }
-          rows={6}
-          placeholder="Enter custom HTML, text, parameters, or JSON configuration..."
-          className={
-            "mt-1 w-full rounded-md border border-input bg-background p-3 text-sm font-mono outline-none focus:border-accent"
-          }
-        />
-      </label>
     </div>
   );
+}
+
+function FullModuleEditor({ title, tabKey }: { title: string; tabKey: string }) {
+  const definition = MODULE_FIELDS[tabKey] ?? { intro: `Configuration for ${title}.`, fields: [
+    { key: "status", label: "Status", placeholder: "Active" },
+    { key: "notes", label: "Admin notes", placeholder: `Notes for ${title}` },
+  ] };
+  const [config, setConfig] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      const { data } = await supabase.from("site_settings").select("value").eq("key", `module_${tabKey}`).maybeSingle();
+      const raw = data?.value && typeof data.value === "object" ? data.value as Record<string, unknown> : {};
+      setConfig(Object.fromEntries(definition.fields.map((f) => [f.key, raw[f.key] == null ? "" : String(raw[f.key])] )));
+      setLoading(false);
+    })();
+  }, [tabKey]);
+
+  async function save() {
+    setSaving(true);
+    const { error } = await supabase.from("site_settings").upsert({ key: `module_${tabKey}`, value: config, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    setSaving(false);
+    if (error) toast.error(`Save failed: ${error.message}`); else toast.success(`${title} settings saved.`);
+  }
+
+  if (loading) return <div className="surface-panel p-8 text-center text-sm text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Loading {title} settings...</div>;
+
+  return (
+    <div className="space-y-5">
+      <section className="surface-panel p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-accent">{activeSectionFor(tabKey)}</div><h2 className="mt-1 font-display text-xl font-bold">{title} Workspace</h2><p className="mt-1 text-sm text-muted-foreground">{definition.intro}</p></section>
+      <div className="surface-panel p-5"><div className="grid gap-4 sm:grid-cols-2">{definition.fields.map((f) => <label key={f.key} className="grid gap-1"><span className={labelCls}>{f.label}</span><input type={f.type ?? "text"} className={fieldCls} value={config[f.key] ?? ""} onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))} placeholder={f.placeholder} /></label>)}</div><div className="mt-5 flex justify-end"><button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-60">{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}Save {title}</button></div></div>
+      <div className="grid gap-4 md:grid-cols-3"><div className="surface-panel p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Module</div><div className="mt-1 font-semibold">{title}</div></div><div className="surface-panel p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Storage</div><div className="mt-1 font-semibold">Admin settings</div></div><div className="surface-panel p-4"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Access</div><div className="mt-1 font-semibold">Admin only</div></div></div>
+    </div>
+  );
+}
+
+function activeSectionFor(tabKey: string) {
+  return ADMIN_NAV.find((x) => x.id === tabKey)?.section ?? "Module";
 }
 
 /* ============================================================
@@ -1836,43 +1824,145 @@ function PostsPanel() {
    DASHBOARD
 ============================================================ */
 
+function DashboardCount({ label, table }: { label: string; table: "profiles" | "blog_posts" | "leads" | "tool_reviews" | "blog_comments" }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-dashboard", table],
+    queryFn: async () => {
+      const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
+    staleTime: 30_000,
+  });
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="mt-2 text-2xl font-bold tracking-tight">{isLoading ? "—" : data}</div>
+      <div className="mt-2 text-[11px] text-muted-foreground">Live database count</div>
+    </div>
+  );
+}
+
 function AdminDashboard() {
-  const cards = [
-    ["Total Calculators", TOOLS.length],
-    ["Blog Posts", "Manage"],
-    ["Pages", "Manage"],
-    ["System Health", "Good"],
-  ];
+  const qc = useQueryClient();
+  const [range, setRange] = useState<"7d" | "30d" | "90d">("30d");
 
   return (
     <div className="space-y-6">
-      <section>
-        <h2 className="font-display text-2xl font-bold">
-          BTTOTEK Master Control Panel
-        </h2>
-
-        <p className="mt-1 text-sm text-muted-foreground">
-          WordPress-style control panel for calculators,
-          blog posts and website content.
-        </p>
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Operations dashboard</div>
+            <h2 className="mt-1 font-display text-2xl font-bold tracking-tight sm:text-3xl">BTTOTEK Control Center</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              A command center for users, content, tools, downloads, revenue and website health. Each area is designed around the job it performs rather than a generic editor.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-border bg-background p-1">
+              {(["7d", "30d", "90d"] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setRange(item)}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                    range === item ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-secondary",
+                  )}
+                >
+                  {item === "7d" ? "7 days" : item === "30d" ? "30 days" : "90 days"}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => void qc.invalidateQueries({ queryKey: ["admin-dashboard"] })}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold hover:bg-secondary"
+            >
+              <RefreshCw className="size-3.5" /> Refresh
+            </button>
+          </div>
+        </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map(([label, value]) => (
-          <div
-            key={String(label)}
-            className="surface-panel p-4"
-          >
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {label}
-            </div>
-
-            <div className="mt-2 text-2xl font-bold">
-              {value}
-            </div>
+      <section>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">Business snapshot</h3>
+            <p className="text-xs text-muted-foreground">The most important operational numbers.</p>
           </div>
-        ))}
-      </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{range}</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <DashboardCount label="Users" table="profiles" />
+          <DashboardCount label="Blog Posts" table="blog_posts" />
+          <DashboardCount label="Leads" table="leads" />
+          <DashboardCount label="Reviews" table="tool_reviews" />
+          <DashboardCount label="Comments" table="blog_comments" />
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Calculators</div><div className="mt-2 text-2xl font-bold tracking-tight">{TOOLS.length}</div><div className="mt-2 text-[11px] text-muted-foreground">Configured tools</div></div>
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">PDF downloads</div><div className="mt-2 text-2xl font-bold tracking-tight">—</div><div className="mt-2 text-[11px] text-muted-foreground">Connects in Phase 2</div></div>
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm"><div className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Revenue</div><div className="mt-2 text-2xl font-bold tracking-tight">₹—</div><div className="mt-2 text-[11px] text-muted-foreground">Connects in Phase 2</div></div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="font-semibold">Activity overview</h3>
+              <p className="mt-1 text-xs text-muted-foreground">Visual space reserved for live users, tool usage and download trends.</p>
+            </div>
+            <span className="rounded-full border border-border px-2 py-1 text-[10px] font-semibold text-muted-foreground">UI ready</span>
+          </div>
+          <div className="mt-6 grid h-48 grid-cols-12 items-end gap-2">
+            {[34, 48, 42, 61, 55, 72, 64, 78, 58, 83, 70, 88].map((height, index) => (
+              <div key={index} className="flex h-full items-end">
+                <div className="w-full rounded-t-md bg-accent/20" style={{ height: `${height}%` }} />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-3 text-[10px] text-muted-foreground"><span>Users</span><span className="text-center">Tool usage</span><span className="text-right">Downloads</span></div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center justify-between"><div><h3 className="font-semibold">System status</h3><p className="mt-1 text-xs text-muted-foreground">High-level health at a glance.</p></div><CheckCircle2 className="size-5 text-emerald-500" /></div>
+          <div className="mt-5 space-y-3">
+            {[
+              ["Authentication", "Protected"],
+              ["Database", "Connected"],
+              ["Storage", "Ready"],
+              ["Admin RLS", "Required"],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2.5"><span className="text-xs font-medium">{label}</span><span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600"><span className="size-1.5 rounded-full bg-emerald-500" />{value}</span></div>
+            ))}
+          </div>
+          <button type="button" onClick={() => setRange("90d")} className="mt-4 w-full rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-secondary">Open System Health</button>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2"><AlertTriangle className="size-4 text-amber-500" /><h3 className="font-semibold">Attention needed</h3></div>
+          <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
+            <li className="rounded-lg bg-amber-500/5 px-3 py-2">Review pending moderation items.</li>
+            <li className="rounded-lg bg-amber-500/5 px-3 py-2">Configure PDF/Excel download rules.</li>
+            <li className="rounded-lg bg-amber-500/5 px-3 py-2">Connect analytics and revenue data in Phase 2.</li>
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="font-semibold">Quick actions</h3>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {[["Create Post", "posts"], ["Manage Tools", "tools"], ["Downloads", "downloads"], ["Appearance", "appearance"]].map(([label]) => (
+              <button key={label} type="button" className="rounded-lg border border-border px-3 py-2.5 text-left text-xs font-semibold hover:bg-secondary">{label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="font-semibold">Admin security</h3>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">The UI never grants admin access by itself. Phase 2 will enforce the same permissions at Supabase RLS/database level.</p>
+          <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-[11px] font-medium text-emerald-700">Admin-only controls stay isolated from normal users.</div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -1927,7 +2017,17 @@ export function AdminConsole() {
         return <MediaPanel />;
 
       case "appearance":
+      case "social":
         return <LayoutPanel />;
+
+      case "downloads":
+        return <AdminDownloadControls />;
+
+      case "excel":
+        return <TemplateManager service="excel" />;
+
+      case "pdf":
+        return <TemplateManager service="pdf" />;
 
       case "cms":
         return <AdminCmsSettingsPanel />;
@@ -2260,314 +2360,61 @@ function MediaPanel() {
 ============================================================ */
 
 function LayoutPanel() {
-  const { settings, save } =
-    useSiteSettings();
+  const { settings, save } = useSiteSettings();
+  const [draft, setDraft] = useState<SiteSettings>(settings);
+  const [section, setSection] = useState<"branding" | "navigation" | "social" | "footer" | "apps">("branding");
+  useEffect(() => setDraft(settings), [settings]);
 
-  const [draft, setDraft] =
-    useState<SiteSettings>(settings);
+  const patch = (fn: (d: SiteSettings) => SiteSettings) => setDraft(d => fn({ ...d, nav: d.nav.map(x => ({ ...x })), socialLinks: d.socialLinks.map(x => ({ ...x })), footerSections: d.footerSections.map(x => ({ ...x, links: x.links.map(l => ({ ...l })) })), storeButtons: d.storeButtons.map(x => ({ ...x })) }));
+  const move = <T extends { order?: number }>(items: T[], index: number, direction: -1 | 1) => {
+    const next = [...items].sort((a,b)=>a.order-b.order); const target = index + direction;
+    if (target < 0 || target >= next.length) return next;
+    [next[index], next[target]] = [next[target], next[index]];
+    return next.map((x,i)=>({ ...x, order:i }));
+  };
+  const saveAll = () => { save(draft); toast.success("Appearance settings saved"); };
 
-  useEffect(() => {
-    setDraft(settings);
-  }, [settings]);
+  const tabs = [
+    ["branding", "Branding"], ["navigation", "Navigation"], ["social", "Social Media"], ["footer", "Footer"], ["apps", "Store Buttons"],
+  ] as const;
 
-  const setNav = (
-    i: number,
-    patch: Partial<{
-      to: string;
-      label: string;
-    }>,
-  ) =>
-    setDraft((d) => ({
-      ...d,
-      nav: d.nav.map((n, idx) =>
-        idx === i
-          ? {
-              ...n,
-              ...patch,
-            }
-          : n,
-      ),
-    }));
-
-  return (
-    <div className="space-y-6">
-      <section className="surface-panel p-5">
-        <h2 className="font-display text-lg font-bold">
-          Header Branding & Links
-        </h2>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1">
-            <span className={labelCls}>
-              Website Name
-            </span>
-
-            <input
-              className={fieldCls}
-              value={draft.siteName}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  siteName: e.target.value,
-                }))
-              }
-            />
-          </label>
-
-          <div className="grid gap-2">
-            <span className={labelCls}>Logo Image</span>
-
-            <input
-              className={fieldCls}
-              value={draft.logoUrl}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  logoUrl: e.target.value,
-                }))
-              }
-              placeholder="https://..."
-            />
-
-            <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-semibold hover:bg-secondary">
-              <Upload className="size-3.5" />
-              Upload Logo
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  e.currentTarget.value = "";
-                  if (!file) return;
-                  if (file.size > 5 * 1024 * 1024) {
-                    toast.error("Logo size 5 MB se kam honi chahiye.");
-                    return;
-                  }
-                  const ext = getFileExtension(file.name);
-                  if (!IMAGE_EXTENSIONS.includes(ext)) {
-                    toast.error("Valid image upload karein.");
-                    return;
-                  }
-                  const path = `branding/logo-${Date.now()}.${ext}`;
-                  const { error } = await supabase.storage
-                    .from("site-assets")
-                    .upload(path, file, {
-                      cacheControl: "3600",
-                      upsert: false,
-                      contentType: file.type || undefined,
-                    });
-                  if (error) {
-                    toast.error("Logo upload failed: " + error.message);
-                    return;
-                  }
-                  const url = supabase.storage
-                    .from("site-assets")
-                    .getPublicUrl(path).data.publicUrl;
-                  setDraft((d) => ({ ...d, logoUrl: url }));
-                  toast.success("Logo uploaded. Ab Save Full Website Settings karein.");
-                }}
-              />
-            </label>
-
-            {draft.logoUrl && (
-              <img
-                src={draft.logoUrl}
-                alt="Current website logo"
-                className="mt-1 h-12 w-fit max-w-full rounded border border-border bg-white object-contain p-1"
-              />
-            )}
-          </div>
-
-          <div className="grid gap-2">
-            <span className={labelCls}>Favicon Image</span>
-
-            <input
-              className={fieldCls}
-              value={(draft as SiteSettings & { faviconUrl?: string }).faviconUrl || ""}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  faviconUrl: e.target.value,
-                }))
-              }
-              placeholder="https://..."
-            />
-
-            <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-semibold hover:bg-secondary">
-              <Upload className="size-3.5" />
-              Upload Favicon
-              <input
-                type="file"
-                accept="image/png,image/x-icon,image/svg+xml,image/webp"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  e.currentTarget.value = "";
-                  if (!file) return;
-                  if (file.size > 2 * 1024 * 1024) {
-                    toast.error("Favicon size 2 MB se kam honi chahiye.");
-                    return;
-                  }
-                  const ext = getFileExtension(file.name);
-                  if (!["png", "ico", "svg", "webp"].includes(ext)) {
-                    toast.error("PNG, ICO, SVG ya WEBP favicon upload karein.");
-                    return;
-                  }
-                  const path = `branding/favicon-${Date.now()}.${ext}`;
-                  const { error } = await supabase.storage
-                    .from("site-assets")
-                    .upload(path, file, {
-                      cacheControl: "3600",
-                      upsert: false,
-                      contentType: file.type || undefined,
-                    });
-                  if (error) {
-                    toast.error("Favicon upload failed: " + error.message);
-                    return;
-                  }
-                  const url = supabase.storage
-                    .from("site-assets")
-                    .getPublicUrl(path).data.publicUrl;
-                  setDraft((d) => ({ ...d, faviconUrl: url }));
-                  toast.success("Favicon uploaded. Save settings karein.");
-                }}
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <span className={labelCls}>
-            Navigation Links
-          </span>
-
-          {draft.nav.map((n, i) => (
-            <div
-              key={i}
-              className="flex flex-wrap gap-2"
-            >
-              <input
-                className={
-                  fieldCls + " flex-1"
-                }
-                value={n.label}
-                onChange={(e) =>
-                  setNav(i, {
-                    label: e.target.value,
-                  })
-                }
-              />
-
-              <input
-                className={
-                  fieldCls + " flex-1"
-                }
-                value={n.to}
-                onChange={(e) =>
-                  setNav(i, {
-                    to: e.target.value,
-                  })
-                }
-              />
-
-              <button
-                type="button"
-                onClick={() =>
-                  setDraft((d) => ({
-                    ...d,
-                    nav: d.nav.filter(
-                      (_, idx) => idx !== i,
-                    ),
-                  }))
-                }
-                className="rounded-md border border-border px-2 text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-
-          <button
-            type="button"
-            onClick={() =>
-              setDraft((d) => ({
-                ...d,
-                nav: [
-                  ...d.nav,
-                  {
-                    label: "New Link",
-                    to: "/",
-                  },
-                ],
-              }))
-            }
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold hover:bg-secondary"
-          >
-            <Plus className="size-3.5" />
-            Add Link
-          </button>
-        </div>
-      </section>
-
-      <section className="surface-panel p-5">
-        <h2 className="font-display text-lg font-bold">
-          Rates & Footer Settings
-        </h2>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1">
-            <span className={labelCls}>
-              Steel Rate (₹ / kg)
-            </span>
-
-            <input
-              type="number"
-              className={fieldCls}
-              value={draft.steelRate}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  steelRate:
-                    Number(e.target.value),
-                }))
-              }
-            />
-          </label>
-
-          <label className="grid gap-1">
-            <span className={labelCls}>
-              Footer Copyright Text
-            </span>
-
-            <input
-              className={fieldCls}
-              value={draft.footerText}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  footerText: e.target.value,
-                }))
-              }
-            />
-          </label>
-        </div>
-      </section>
-
-      <button
-        type="button"
-        onClick={() => {
-          save(draft);
-          toast.success(
-            "Site layout settings updated!",
-          );
-        }}
-        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90"
-      >
-        Save Full Website Settings
-      </button>
+  return <div className="space-y-5">
+    <div className="grid gap-3 sm:grid-cols-5">
+      {tabs.map(([id,label]) => <button key={id} type="button" onClick={()=>setSection(id)} className={cn("rounded-xl border p-3 text-left transition", section===id ? "border-accent bg-accent/10" : "border-border bg-card hover:bg-secondary")}><div className="text-xs font-bold">{label}</div><div className="mt-1 text-[10px] text-muted-foreground">Manage {label.toLowerCase()}</div></button>)}
     </div>
-  );
+
+    {section === "branding" && <div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+      <section className="surface-panel p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Website Identity</div><h2 className="mt-1 font-display text-xl font-bold">Branding & Theme</h2>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <label className="grid gap-1"><span className={labelCls}>Website name</span><input className={fieldCls} value={draft.siteName} onChange={e=>setDraft(d=>({...d,siteName:e.target.value}))}/></label>
+          <label className="grid gap-1"><span className={labelCls}>Logo URL</span><input className={fieldCls} value={draft.logoUrl} onChange={e=>setDraft(d=>({...d,logoUrl:e.target.value}))}/></label>
+          <label className="grid gap-1"><span className={labelCls}>Favicon URL</span><input className={fieldCls} value={draft.faviconUrl || ""} onChange={e=>setDraft(d=>({...d,faviconUrl:e.target.value}))}/></label>
+          <label className="grid gap-1"><span className={labelCls}>Steel rate ₹/kg</span><input type="number" className={fieldCls} value={draft.steelRate} onChange={e=>setDraft(d=>({...d,steelRate:Number(e.target.value)}))}/></label>
+        </div>
+      </section>
+      <section className="surface-panel p-5"><div className="text-sm font-semibold">Live preview</div><div className="mt-4 rounded-xl border border-border bg-background p-4"><div className="flex items-center gap-3"><img src={draft.logoUrl || "/logo.png"} className="size-10 rounded-md border object-contain"/><div><div className="font-bold">{draft.siteName}</div><div className="text-xs text-muted-foreground">Header branding preview</div></div></div><div className="mt-4 rounded-lg bg-secondary p-3 text-xs">Footer: {draft.footerText}</div></div></section>
+    </div>}
+
+    {section === "navigation" && <section className="surface-panel p-5"><div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Header</div><h2 className="mt-1 font-display text-xl font-bold">Navigation Manager</h2><p className="mt-1 text-sm text-muted-foreground">Add, hide, reorder or remove public navigation links.</p></div><Plus className="size-5 text-muted-foreground"/></div>
+      <div className="mt-5 space-y-2">{[...draft.nav].sort((a,b)=>(a.order??0)-(b.order??0)).map((n,i)=><div key={`${n.label}-${i}`} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[1fr_1.4fr_auto_auto_auto_auto] sm:items-center"><input className={fieldCls} value={n.label} onChange={e=>patch(d=>({...d,nav:d.nav.map((x,j)=>j===i?{...x,label:e.target.value}:x)}))}/><input className={fieldCls} value={n.to} onChange={e=>patch(d=>({...d,nav:d.nav.map((x,j)=>j===i?{...x,to:e.target.value}:x)}))}/><button type="button" onClick={()=>patch(d=>({...d,nav:d.nav.map((x,j)=>j===i?{...x,enabled:x.enabled===false}:x)}))} className="rounded-md border px-3 py-2 text-xs">{n.enabled===false?<EyeOff/>:<Eye/>}</button><button type="button" onClick={()=>patch(d=>({...d,nav:move(d.nav,i,-1)}))} className="rounded-md border px-3 py-2 text-xs">↑</button><button type="button" onClick={()=>patch(d=>({...d,nav:move(d.nav,i,1)}))} className="rounded-md border px-3 py-2 text-xs">↓</button><button type="button" onClick={()=>patch(d=>({...d,nav:d.nav.filter((_,j)=>j!==i)}))} className="rounded-md border px-3 py-2 text-xs text-destructive"><Trash2/></button></div>)}</div>
+      <button type="button" onClick={()=>patch(d=>({...d,nav:[...d.nav,{label:"New Link",to:"/",enabled:true,order:d.nav.length}]}))} className="mt-4 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold"><Plus/> Add navigation link</button>
+    </section>}
+
+    {section === "social" && <section className="surface-panel p-5"><div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Footer & Sharing</div><h2 className="mt-1 font-display text-xl font-bold">Social Media Manager</h2><p className="mt-1 text-sm text-muted-foreground">Each social button is independent: URL, show/hide, order and delete.</p></div><MessageCircle className="size-5 text-muted-foreground"/></div>
+      <div className="mt-5 space-y-3">{[...draft.socialLinks].sort((a,b)=>a.order-b.order).map((x,i)=><div key={x.id} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[140px_1fr_auto_auto_auto_auto] sm:items-center"><input className={fieldCls} value={x.label} onChange={e=>patch(d=>({...d,socialLinks:d.socialLinks.map(v=>v.id===x.id?{...v,label:e.target.value}:v)}))}/><input className={fieldCls} value={x.url} placeholder="https://..." onChange={e=>patch(d=>({...d,socialLinks:d.socialLinks.map(v=>v.id===x.id?{...v,url:e.target.value}:v)}))}/><button type="button" onClick={()=>patch(d=>({...d,socialLinks:d.socialLinks.map(v=>v.id===x.id?{...v,enabled:!v.enabled}:v)}))} className="rounded-md border px-3 py-2 text-xs">{x.enabled?<Eye/>:<EyeOff/>}</button><button type="button" onClick={()=>patch(d=>({...d,socialLinks:move(d.socialLinks,i,-1)}))} className="rounded-md border px-3 py-2">↑</button><button type="button" onClick={()=>patch(d=>({...d,socialLinks:move(d.socialLinks,i,1)}))} className="rounded-md border px-3 py-2">↓</button><button type="button" onClick={()=>patch(d=>({...d,socialLinks:d.socialLinks.filter(v=>v.id!==x.id)}))} className="rounded-md border px-3 py-2 text-destructive"><Trash2/></button></div>)}</div>
+      <button type="button" onClick={()=>patch(d=>({...d,socialLinks:[...d.socialLinks,{id:`social-${Date.now()}`,label:"New Social",url:"",enabled:true,order:d.socialLinks.length}]}))} className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground"><Plus/> Add social platform</button>
+    </section>}
+
+    {section === "footer" && <section className="surface-panel p-5"><div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Footer Builder</div><h2 className="mt-1 font-display text-xl font-bold">Footer Sections & Links</h2><p className="mt-1 text-sm text-muted-foreground">Manage sections, links, visibility and order without editing code.</p></div>
+      <div className="mt-5 space-y-4">{[...draft.footerSections].sort((a,b)=>a.order-b.order).map(sectionData=><div key={sectionData.id} className="rounded-xl border border-border p-4"><div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center"><input className={fieldCls} value={sectionData.title} onChange={e=>patch(d=>({...d,footerSections:d.footerSections.map(v=>v.id===sectionData.id?{...v,title:e.target.value}:v)}))}/><button type="button" onClick={()=>patch(d=>({...d,footerSections:d.footerSections.map(v=>v.id===sectionData.id?{...v,enabled:!v.enabled}:v)}))} className="rounded-md border px-3 py-2 text-xs">{sectionData.enabled?<Eye/>:<EyeOff/>}</button><button type="button" onClick={()=>patch(d=>({...d,footerSections:d.footerSections.filter(v=>v.id!==sectionData.id)}))} className="rounded-md border px-3 py-2 text-destructive"><Trash2/></button></div><div className="mt-3 space-y-2">{sectionData.links.map(link=><div key={link.id} className="grid gap-2 sm:grid-cols-[1fr_1.2fr_auto_auto] sm:items-center"><input className={fieldCls} value={link.label} onChange={e=>patch(d=>({...d,footerSections:d.footerSections.map(v=>v.id===sectionData.id?{...v,links:v.links.map(l=>l.id===link.id?{...l,label:e.target.value}:l)}:v)}))}/><input className={fieldCls} value={link.to} onChange={e=>patch(d=>({...d,footerSections:d.footerSections.map(v=>v.id===sectionData.id?{...v,links:v.links.map(l=>l.id===link.id?{...l,to:e.target.value}:l)}:v)}))}/><button type="button" onClick={()=>patch(d=>({...d,footerSections:d.footerSections.map(v=>v.id===sectionData.id?{...v,links:v.links.map(l=>l.id===link.id?{...l,enabled:!l.enabled}:l)}:v)}))} className="rounded-md border px-3 py-2">{link.enabled?<Eye/>:<EyeOff/>}</button><button type="button" onClick={()=>patch(d=>({...d,footerSections:d.footerSections.map(v=>v.id===sectionData.id?{...v,links:v.links.filter(l=>l.id!==link.id)}:v)}))} className="rounded-md border px-3 py-2 text-destructive"><Trash2/></button></div>)}</div><button type="button" onClick={()=>patch(d=>({...d,footerSections:d.footerSections.map(v=>v.id===sectionData.id?{...v,links:[...v.links,{id:`link-${Date.now()}`,label:"New Link",to:"/",enabled:true,order:v.links.length}]}:v)}))} className="mt-3 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold"><Plus/> Add footer link</button></div>)}</div>
+      <label className="mt-4 grid gap-1"><span className={labelCls}>Copyright / footer text</span><input className={fieldCls} value={draft.footerText} onChange={e=>setDraft(d=>({...d,footerText:e.target.value}))}/></label>
+      <button type="button" onClick={()=>patch(d=>({...d,footerSections:[...d.footerSections,{id:`section-${Date.now()}`,title:"New Section",enabled:true,order:d.footerSections.length,links:[]}]}))} className="mt-4 inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold"><Plus/> Add footer section</button>
+    </section>}
+
+    {section === "apps" && <section className="surface-panel p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Footer App Buttons</div><h2 className="mt-1 font-display text-xl font-bold">App Store Manager</h2><p className="mt-1 text-sm text-muted-foreground">Google Play and future store badges can be independently enabled or removed.</p><div className="mt-5 space-y-3">{[...draft.storeButtons].sort((a,b)=>a.order-b.order).map((x,i)=><div key={x.id} className="grid gap-2 rounded-xl border border-border p-4 sm:grid-cols-[150px_1fr_auto_auto] sm:items-center"><select className={fieldCls} value={x.kind} onChange={e=>patch(d=>({...d,storeButtons:d.storeButtons.map(v=>v.id===x.id?{...v,kind:e.target.value as any}:v)}))}><option value="google-play">Google Play</option><option value="apple-store">Apple App Store</option><option value="custom">Custom Store</option></select><input className={fieldCls} value={x.url} placeholder="Store URL" onChange={e=>patch(d=>({...d,storeButtons:d.storeButtons.map(v=>v.id===x.id?{...v,url:e.target.value}:v)}))}/><button type="button" onClick={()=>patch(d=>({...d,storeButtons:d.storeButtons.map(v=>v.id===x.id?{...v,enabled:!v.enabled}:v)}))} className="rounded-md border px-3 py-2">{x.enabled?<Eye/>:<EyeOff/>}</button><button type="button" onClick={()=>patch(d=>({...d,storeButtons:d.storeButtons.filter(v=>v.id!==x.id)}))} className="rounded-md border px-3 py-2 text-destructive"><Trash2/></button></div>)}</div><button type="button" onClick={()=>patch(d=>({...d,storeButtons:[...d.storeButtons,{id:`store-${Date.now()}`,kind:"custom",label:"App Store",url:"",enabled:true,order:d.storeButtons.length}]}))} className="mt-4 inline-flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground"><Plus/> Add store button</button></section>}
+
+    <div className="sticky bottom-3 z-10 flex justify-end"><button type="button" onClick={saveAll} className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-bold text-accent-foreground shadow-lg"><Save/> Save Appearance Changes</button></div>
+  </div>;
 }
 
 /* ============================================================
@@ -3031,19 +2878,22 @@ function Table({
 ============================================================ */
 
 function ReviewsPanel() {
-  return (
-    <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-      No tool reviews submitted yet.
-    </div>
-  );
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["admin_reviews"], queryFn: async () => {
+    const { data, error } = await supabase.from("tool_reviews").select("id,tool_slug,author_name,rating,body,approved,created_at").order("created_at", { ascending: false });
+    if (error) throw error; return data ?? [];
+  }});
+  async function toggle(row: any) { const { error } = await supabase.from("tool_reviews").update({ approved: !row.approved }).eq("id", row.id); if (error) toast.error(error.message); else { toast.success(row.approved ? "Review hidden" : "Review approved"); void qc.invalidateQueries({ queryKey: ["admin_reviews"] }); } }
+  async function remove(row: any) { if (!window.confirm("Delete this review?")) return; const { error } = await supabase.from("tool_reviews").delete().eq("id", row.id); if (error) toast.error(error.message); else void qc.invalidateQueries({ queryKey: ["admin_reviews"] }); }
+  return <div className="space-y-5"><section className="surface-panel p-5"><h2 className="font-display text-xl font-bold">Review Moderation</h2><p className="mt-1 text-sm text-muted-foreground">Approve, hide or delete tool reviews before they appear publicly.</p></section><div className="surface-panel overflow-hidden">{isLoading ? <div className="p-8 text-center text-sm text-muted-foreground">Loading reviews...</div> : !data?.length ? <div className="p-8 text-center text-sm text-muted-foreground">No reviews yet.</div> : <div className="divide-y divide-border">{data.map((r: any) => <div key={r.id} className="grid gap-3 p-4 md:grid-cols-[1fr_120px_110px_auto] md:items-center"><div><div className="font-semibold">{r.author_name} · {"★".repeat(r.rating)}</div><div className="text-xs text-muted-foreground">{r.tool_slug} · {new Date(r.created_at).toLocaleString()}</div><p className="mt-1 text-sm">{r.body}</p></div><StatusBadge status={r.approved ? "Approved" : "Pending"}/><button type="button" onClick={() => void toggle(r)} className="rounded-md border border-border px-3 py-2 text-xs font-semibold">{r.approved ? "Hide" : "Approve"}</button><button type="button" onClick={() => void remove(r)} className="grid size-8 place-items-center rounded-md border border-border hover:text-destructive"><Trash2 className="size-4"/></button></div>)}</div>}</div></div>;
 }
 
 function CommentsPanel() {
-  return (
-    <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-      No blog comments submitted yet.
-    </div>
-  );
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["admin_comments"], queryFn: async () => { const { data, error } = await supabase.from("blog_comments").select("id,post_slug,author_name,author_email,body,approved,created_at").order("created_at", { ascending: false }); if (error) throw error; return data ?? []; }});
+  async function toggle(row: any) { const { error } = await supabase.from("blog_comments").update({ approved: !row.approved }).eq("id", row.id); if (error) toast.error(error.message); else { toast.success(row.approved ? "Comment hidden" : "Comment approved"); void qc.invalidateQueries({ queryKey: ["admin_comments"] }); } }
+  async function remove(row: any) { if (!window.confirm("Delete this comment?")) return; const { error } = await supabase.from("blog_comments").delete().eq("id", row.id); if (error) toast.error(error.message); else void qc.invalidateQueries({ queryKey: ["admin_comments"] }); }
+  return <div className="space-y-5"><section className="surface-panel p-5"><h2 className="font-display text-xl font-bold">Comment Moderation</h2><p className="mt-1 text-sm text-muted-foreground">Review blog comments, publish good comments and remove spam.</p></section><div className="surface-panel overflow-hidden">{isLoading ? <div className="p-8 text-center text-sm text-muted-foreground">Loading comments...</div> : !data?.length ? <div className="p-8 text-center text-sm text-muted-foreground">No comments yet.</div> : <div className="divide-y divide-border">{data.map((c: any) => <div key={c.id} className="grid gap-3 p-4 md:grid-cols-[1fr_120px_auto_auto] md:items-center"><div><div className="font-semibold">{c.author_name} <span className="font-normal text-muted-foreground">({c.author_email})</span></div><div className="text-xs text-muted-foreground">/blog/{c.post_slug} · {new Date(c.created_at).toLocaleString()}</div><p className="mt-1 text-sm">{c.body}</p></div><StatusBadge status={c.approved ? "Approved" : "Pending"}/><button type="button" onClick={() => void toggle(c)} className="rounded-md border border-border px-3 py-2 text-xs font-semibold">{c.approved ? "Hide" : "Approve"}</button><button type="button" onClick={() => void remove(c)} className="grid size-8 place-items-center rounded-md border border-border hover:text-destructive"><Trash2 className="size-4"/></button></div>)}</div>}</div></div>;
 }
 
 export default AdminConsole;
