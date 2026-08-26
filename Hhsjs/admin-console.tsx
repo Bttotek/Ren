@@ -29,6 +29,7 @@ import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import AdminCmsSettingsPanel from "@/components/admin-cms-settings-panel";
 import { cn } from "@/lib/utils";
 import { getCmsToolOverrides, saveCmsToolOverride } from "@/lib/admin-cms";
+import { getBBSSettings, saveBBSSettings, type BBSSettings } from "@/lib/bbs-settings";
 
 type Tab =
   | "dashboard"
@@ -569,106 +570,93 @@ function TemplateManager({ service }: { service: "pdf" | "excel" }) {
 }
 
 
-function DownloadsPanel() {
-  const [section, setSection] = useState<"overview" | "pdf" | "excel" | "rules" | "orders">("overview");
-  const [search, setSearch] = useState("");
-  const [access, setAccess] = useState<"all" | "free" | "paid">("all");
-  const [pdfMode, setPdfMode] = useState<"free" | "paid">("free");
-  const [excelMode, setExcelMode] = useState<"free" | "paid">("paid");
-  const [pdfPrice, setPdfPrice] = useState("0");
-  const [excelPrice, setExcelPrice] = useState("49");
-  const [loginRequired, setLoginRequired] = useState(true);
-  const [pdfDaily, setPdfDaily] = useState("3");
-  const [excelDaily, setExcelDaily] = useState("1");
-
-  const products = [
-    { id: "pdf-1", type: "PDF", name: "BBS Report Template", category: "BBS", access: pdfMode, price: pdfMode === "paid" ? pdfPrice : "0", downloads: "—", status: "Draft" },
-    { id: "pdf-2", type: "PDF", name: "Construction Estimate Report", category: "Estimation", access: "free", price: "0", downloads: "—", status: "Active" },
-    { id: "xls-1", type: "Excel", name: "Quantity Estimate Sheet", category: "Estimation", access: excelMode, price: excelMode === "paid" ? excelPrice : "0", downloads: "—", status: "Draft" },
-    { id: "xls-2", type: "Excel", name: "Rebar Schedule Workbook", category: "Structural", access: "paid", price: "99", downloads: "—", status: "Active" },
-  ];
-
-  const filtered = products.filter((p) => {
-    const matchesSearch = `${p.name} ${p.category}`.toLowerCase().includes(search.toLowerCase());
-    const matchesAccess = access === "all" || p.access === access;
-    return matchesSearch && matchesAccess;
+function BBSAdminPanel() {
+  const [settings, setSettings] = useState<BBSSettings>({
+    enabled: true, steel_rate: 65, default_diameter: 12,
+    default_spacing: 150, default_member_count: 1, default_bars_per_member: 1,
   });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      setSettings(await getBBSSettings());
+      setLoading(false);
+    })();
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    const { error } = await saveBBSSettings(settings);
+    setSaving(false);
+    if (error) toast.error(`BBS save failed: ${error.message}`);
+    else toast.success("BBS settings saved successfully.");
+  }
+
+  if (loading) return <div className="surface-panel p-8 text-center"><Loader2 className="mx-auto size-5 animate-spin" /></div>;
 
   return (
     <div className="space-y-5">
-      <section className="surface-panel overflow-hidden">
-        <div className="border-b border-border bg-gradient-to-r from-accent/10 via-background to-background p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Downloads & Monetization</div>
-              <h2 className="mt-1 font-display text-2xl font-bold">Download Services</h2>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Control downloadable PDF and Excel products, access rules, pricing and order workflow from one dedicated workspace.</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card px-4 py-3 text-right">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Phase 1</div>
-              <div className="mt-1 font-semibold">UI only</div>
-              <div className="text-xs text-muted-foreground">Backend connects later</div>
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 border-b border-border md:grid-cols-5">
-          {[
-            ["overview", "Overview"], ["pdf", "PDF Manager"], ["excel", "Excel Manager"], ["rules", "Download Rules"], ["orders", "Orders"],
-          ].map(([id, label]) => (
-            <button key={id} type="button" onClick={() => setSection(id as typeof section)} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors ${section === id ? "border-accent bg-accent/5 text-accent" : "border-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground"}`}>{label}</button>
-          ))}
-        </div>
+      <section className="surface-panel p-5">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-accent">Tools</div>
+        <h2 className="mt-1 font-display text-2xl font-bold">BBS Pro Control</h2>
+        <p className="mt-1 text-sm text-muted-foreground">All BBS defaults are stored in the admin settings.</p>
       </section>
-
-      {section === "overview" && (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              ["PDF Downloads", "—", "Track after backend connection"],
-              ["Excel Downloads", "—", "Track after backend connection"],
-              ["Paid Downloads", "—", "Revenue analytics later"],
-              ["Revenue", "₹—", "Payment gateway later"],
-            ].map(([label, value, note]) => (
-              <div key={label} className="surface-panel p-4">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</div>
-                <div className="mt-2 font-display text-2xl font-bold">{value}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{note}</div>
-              </div>
-            ))}
-          </div>
-          <div className="grid gap-4 lg:grid-cols-[1.4fr_.6fr]">
-            <div className="surface-panel p-5">
-              <div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Product Catalog</h3><p className="text-xs text-muted-foreground">Preview of downloadable products.</p></div><button type="button" onClick={() => setSection("pdf")} className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground">Manage products</button></div>
-              <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="pb-3">Product</th><th className="pb-3">Type</th><th className="pb-3">Access</th><th className="pb-3">Price</th><th className="pb-3">Status</th></tr></thead><tbody>{filtered.slice(0, 5).map((p) => <tr key={p.id} className="border-b border-border/70 last:border-0"><td className="py-3 font-medium">{p.name}</td><td className="py-3">{p.type}</td><td className="py-3"><StatusBadge status={p.access === "paid" ? "Paid" : "Free"} /></td><td className="py-3">₹{p.price}</td><td className="py-3"><StatusBadge status={p.status} /></td></tr>)}</tbody></table></div>
-            </div>
-            <div className="surface-panel p-5"><h3 className="font-semibold">Quick Actions</h3><div className="mt-4 grid gap-2"><button type="button" onClick={() => setSection("pdf")} className="rounded-lg border border-border p-3 text-left text-sm font-semibold hover:bg-secondary/60">+ Add PDF product</button><button type="button" onClick={() => setSection("excel")} className="rounded-lg border border-border p-3 text-left text-sm font-semibold hover:bg-secondary/60">+ Add Excel product</button><button type="button" onClick={() => setSection("rules")} className="rounded-lg border border-border p-3 text-left text-sm font-semibold hover:bg-secondary/60">Configure download rules</button></div></div>
-          </div>
-        </>
-      )}
-
-      {(section === "pdf" || section === "excel") && (
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
-          <section className="surface-panel p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">{section === "pdf" ? "PDF" : "Excel"}</div><h3 className="mt-1 font-display text-xl font-bold">{section === "pdf" ? "PDF Product Manager" : "Excel Product Manager"}</h3></div><button type="button" className="inline-flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"><Plus className="size-4" />Add product</button></div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center"><input className={fieldCls} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${section === "pdf" ? "PDF" : "Excel"} products...`} /><select className={fieldCls} value={access} onChange={(e) => setAccess(e.target.value as typeof access)}><option value="all">All access</option><option value="free">Free</option><option value="paid">Paid</option></select></div>
-            <div className="mt-4 space-y-2">{filtered.filter((p) => p.type.toLowerCase() === section).map((p) => <div key={p.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="font-semibold">{p.name}</div><div className="mt-1 text-xs text-muted-foreground">{p.category} · {p.downloads} downloads</div></div><div className="flex items-center gap-2"><StatusBadge status={p.access === "paid" ? "Paid" : "Free"} /><span className="text-sm font-bold">₹{p.price}</span></div></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold">Preview</button><button type="button" className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold">Edit</button><button type="button" className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold">Enable / Disable</button><button type="button" className="rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive">Delete</button></div></div>)}</div>
-          </section>
-          <section className="surface-panel p-5"><h3 className="font-semibold">Product Defaults</h3><p className="mt-1 text-xs text-muted-foreground">Preview the pricing/access policy before backend wiring.</p><div className="mt-4 space-y-4"><label className="grid gap-1"><span className={labelCls}>Access mode</span><select className={fieldCls} value={section === "pdf" ? pdfMode : excelMode} onChange={(e) => section === "pdf" ? setPdfMode(e.target.value as "free" | "paid") : setExcelMode(e.target.value as "free" | "paid")}><option value="free">Free</option><option value="paid">Paid</option></select></label><label className="grid gap-1"><span className={labelCls}>Price (₹)</span><input className={fieldCls} type="number" min="0" value={section === "pdf" ? pdfPrice : excelPrice} onChange={(e) => section === "pdf" ? setPdfPrice(e.target.value) : setExcelPrice(e.target.value)} /></label><div className="rounded-lg bg-secondary/60 p-4 text-sm"><div>Access: <strong>{(section === "pdf" ? pdfMode : excelMode).toUpperCase()}</strong></div><div className="mt-1">Price: <strong>₹{section === "pdf" ? pdfPrice : excelPrice}</strong></div></div></div></section>
+      <section className="surface-panel p-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex items-center justify-between rounded-lg border border-border p-4 sm:col-span-2 lg:col-span-3">
+            <span><span className={labelCls}>BBS Calculator</span><span className="mt-1 block text-sm font-semibold">Enable calculator</span></span>
+            <input type="checkbox" checked={settings.enabled} onChange={e => setSettings(x => ({...x, enabled:e.target.checked}))} className="size-4" />
+          </label>
+          <label className="grid gap-1"><span className={labelCls}>Steel Rate / KG</span><input type="number" min="0" step="0.01" className={fieldCls} value={settings.steel_rate} onChange={e => setSettings(x => ({...x, steel_rate:Math.max(0, Number(e.target.value)||0)}))}/></label>
+          <label className="grid gap-1"><span className={labelCls}>Default Diameter</span><select className={fieldCls} value={settings.default_diameter} onChange={e => setSettings(x => ({...x, default_diameter:Number(e.target.value)}))}>{[8,10,12,16,20,25,32,40].map(d=><option key={d} value={d}>{d} mm</option>)}</select></label>
+          <label className="grid gap-1"><span className={labelCls}>Default Spacing</span><input type="number" min="1" className={fieldCls} value={settings.default_spacing} onChange={e => setSettings(x => ({...x, default_spacing:Math.max(1, Number(e.target.value)||1)}))}/></label>
+          <label className="grid gap-1"><span className={labelCls}>Default Member Count</span><input type="number" min="1" className={fieldCls} value={settings.default_member_count} onChange={e => setSettings(x => ({...x, default_member_count:Math.max(1, Number(e.target.value)||1)}))}/></label>
+          <label className="grid gap-1"><span className={labelCls}>Default Bars / Member</span><input type="number" min="1" className={fieldCls} value={settings.default_bars_per_member} onChange={e => setSettings(x => ({...x, default_bars_per_member:Math.max(1, Number(e.target.value)||1)}))}/></label>
         </div>
-      )}
-
-      {section === "rules" && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="surface-panel p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Access Policy</div><h3 className="mt-1 font-display text-xl font-bold">Download Rules</h3><p className="mt-1 text-sm text-muted-foreground">Central controls for free/paid downloads.</p><div className="mt-5 space-y-4"><label className="flex items-center justify-between rounded-lg border border-border p-4"><span><span className="block text-sm font-semibold">Login required</span><span className="text-xs text-muted-foreground">Users must sign in before downloading.</span></span><input type="checkbox" checked={loginRequired} onChange={(e) => setLoginRequired(e.target.checked)} /></label><div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1"><span className={labelCls}>PDF free downloads / day</span><input className={fieldCls} type="number" min="0" value={pdfDaily} onChange={(e) => setPdfDaily(e.target.value)} /></label><label className="grid gap-1"><span className={labelCls}>Excel free downloads / day</span><input className={fieldCls} type="number" min="0" value={excelDaily} onChange={(e) => setExcelDaily(e.target.value)} /></label></div><button type="button" onClick={() => toast.info("Download rules will connect in Phase 2.")} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground">Save rules</button></div></section>
-          <section className="surface-panel p-5"><h3 className="font-semibold">Policy Preview</h3><div className="mt-4 space-y-3"><div className="rounded-lg border border-border p-4"><div className="font-semibold">PDF</div><div className="mt-1 text-sm text-muted-foreground">Free limit: {pdfDaily}/day</div><div className="text-sm text-muted-foreground">Paid products: admin-defined price</div></div><div className="rounded-lg border border-border p-4"><div className="font-semibold">Excel</div><div className="mt-1 text-sm text-muted-foreground">Free limit: {excelDaily}/day</div><div className="text-sm text-muted-foreground">Paid products: admin-defined price</div></div><div className="rounded-lg bg-secondary/60 p-4 text-sm">Login required: <strong>{loginRequired ? "Yes" : "No"}</strong></div></div></section>
-        </div>
-      )}
-
-      {section === "orders" && (
-        <section className="surface-panel p-5"><div className="flex items-center justify-between"><div><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Payments</div><h3 className="mt-1 font-display text-xl font-bold">Orders</h3><p className="mt-1 text-sm text-muted-foreground">Payment/order workspace ready for Phase 2 gateway connection.</p></div><StatusBadge status="Not connected" /></div><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="pb-3">Order ID</th><th className="pb-3">User</th><th className="pb-3">Product</th><th className="pb-3">Amount</th><th className="pb-3">Status</th><th className="pb-3">Date</th></tr></thead><tbody><tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">No orders yet — payment gateway will populate this table in Phase 2.</td></tr></tbody></table></div></section>
-      )}
+        <div className="mt-5 flex justify-end"><button type="button" disabled={saving} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground disabled:opacity-60">{saving ? <Loader2 className="size-4 animate-spin"/> : <Save className="size-4"/>}{saving ? "Saving..." : "Save BBS Settings"}</button></div>
+      </section>
     </div>
   );
+}
+
+function DownloadsPanel() {
+  type Service = "pdf" | "excel";
+  type Row = { service_key: Service; enabled: boolean; access_mode: "free" | "paid"; free_daily_limit: number; price: number };
+  const defaults: Row[] = [
+    {service_key:"pdf", enabled:true, access_mode:"free", free_daily_limit:2, price:0},
+    {service_key:"excel", enabled:true, access_mode:"free", free_daily_limit:2, price:0},
+  ];
+  const [rows,setRows]=useState<Row[]>(defaults);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{ void (async()=>{
+    const {data,error}=await supabase.from("download_service_settings").select("service_key,enabled,access_mode,free_daily_limit,price").order("service_key");
+    if(error) toast.error(`Could not load download settings: ${error.message}`);
+    if(data?.length) setRows(defaults.map(d=>(data.find(x=>x.service_key===d.service_key) as Row|undefined) ?? d));
+    setLoading(false);
+  })(); },[]);
+
+  function patch(service_key:Service, patch:Partial<Row>){ setRows(r=>r.map(x=>x.service_key===service_key?{...x,...patch}:x)); }
+  async function save(){
+    setSaving(true);
+    const {error}=await supabase.from("download_service_settings").upsert(rows.map(r=>({...r,updated_at:new Date().toISOString()})),{onConflict:"service_key"});
+    setSaving(false);
+    if(error) toast.error(`Save failed: ${error.message}`); else toast.success("Download settings saved successfully.");
+  }
+  if(loading) return <div className="surface-panel p-8 text-center"><Loader2 className="mx-auto size-5 animate-spin"/></div>;
+  return <div className="space-y-5">
+    <section className="surface-panel p-5"><div className="text-[10px] font-bold uppercase tracking-wider text-accent">Downloads</div><h2 className="mt-1 font-display text-2xl font-bold">PDF & Excel Controls</h2><p className="mt-1 text-sm text-muted-foreground">These settings are live and are read by the download access service.</p></section>
+    <div className="grid gap-4 md:grid-cols-2">{rows.map(row=><section key={row.service_key} className="surface-panel p-5 space-y-4">
+      <div className="flex items-center justify-between"><h3 className="font-semibold">{row.service_key.toUpperCase()} Download</h3><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={row.enabled} onChange={e=>patch(row.service_key,{enabled:e.target.checked})}/> Enabled</label></div>
+      <label className="grid gap-1"><span className={labelCls}>Access Mode</span><select className={fieldCls} value={row.access_mode} onChange={e=>patch(row.service_key,{access_mode:e.target.value as "free"|"paid"})}><option value="free">Free</option><option value="paid">Paid / Premium</option></select></label>
+      <label className="grid gap-1"><span className={labelCls}>Free Downloads / Day</span><input type="number" min="0" className={fieldCls} value={row.free_daily_limit} onChange={e=>patch(row.service_key,{free_daily_limit:Math.max(0,Number(e.target.value)||0)})}/></label>
+      <label className="grid gap-1"><span className={labelCls}>Price (₹)</span><input type="number" min="0" step="0.01" className={fieldCls} value={row.price} onChange={e=>patch(row.service_key,{price:Math.max(0,Number(e.target.value)||0)})}/></label>
+    </section>)}</div>
+    <div className="flex justify-end"><button type="button" disabled={saving} onClick={()=>void save()} className="inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground disabled:opacity-60">{saving?<Loader2 className="size-4 animate-spin"/>:<Save className="size-4"/>}{saving?"Saving...":"Save Download Settings"}</button></div>
+  </div>;
 }
 
 function FullModuleEditor({ title, tabKey }: { title: string; tabKey: string }) {
@@ -2959,6 +2947,9 @@ function AdminConsole() {
 
       case "downloads":
         return <DownloadsPanel />;
+
+      case "bbs":
+        return <BBSAdminPanel />;
 
       case "analytics":
         return <AnalyticsPanel />;
