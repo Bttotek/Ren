@@ -21,19 +21,13 @@ import {
   Upload,
   Image as ImageIcon,
   RefreshCw,
-  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { TOOLS } from "@/lib/tools";
 import { useSiteSettings, type SiteSettings } from "@/lib/site-settings";
 import AdminCmsSettingsPanel from "@/components/admin-cms-settings-panel";
-
-// Local className helper. This file uses cn() in several UI states.
-// Keeping it local prevents the admin bundle from crashing if the shared
-// utils module is missing or not included in the production build.
-const cn = (...classes: Array<string | false | null | undefined>) =>
-  classes.filter(Boolean).join(" ");
+import { cn } from "@/lib/utils";
 
 type Tab =
   | "dashboard"
@@ -67,8 +61,6 @@ type Tab =
   | "security"
   | "backup"
   | "health"
-  | "notifications"
-  | "email"
   | "settings"
   | "cms";
 
@@ -163,7 +155,6 @@ type PostRecord = {
   seo_description?: string | null;
   created_at?: string;
   updated_at?: string;
-  source?: "posts" | "blog_posts";
 };
 
 const slugify = (value: string) =>
@@ -1515,82 +1506,32 @@ function PostsPanel() {
   const [published, setPublished] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const { data, isLoading, isError, error } = useQuery<PostRecord[]>({
+  const { data, isLoading } = useQuery<PostRecord[]>({
     queryKey: ["admin_posts"],
     queryFn: async () => {
-      // Older BTTOTEK posts were stored in `posts`, while the newer
-      // editor stores posts in `blog_posts`. Load both so old content
-      // does not disappear from the admin panel.
-      const [oldResult, newResult] = await Promise.all([
-        supabase
-          .from("posts")
-          .select("*")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("blog_posts")
-          .select("*")
-          .order("created_at", { ascending: false }),
-      ]);
+      const { data, error } = await supabase
+        .from("blog_posts")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      const oldPosts: PostRecord[] = !oldResult.error
-        ? (oldResult.data || []).map((post: any) => ({
-            id: String(post.id),
-            title: post.title || "Untitled post",
-            slug: post.slug || "",
-            excerpt: post.excerpt ?? null,
-            content: post.content ?? post.body ?? "",
-            body: post.content ?? post.body ?? "",
-            published: post.published !== false,
-            featured_image: post.featured_image ?? post.cover_url ?? null,
-            category: post.category ?? "General",
-            tags: post.tags ?? [],
-            seo_title: post.seo_title ?? post.meta_title ?? null,
-            seo_description: post.seo_description ?? post.meta_description ?? null,
-            created_at: post.created_at,
-            updated_at: post.updated_at,
-            source: "posts",
-          }))
-        : [];
+      if (error) throw error;
 
-      const newPosts: PostRecord[] = !newResult.error
-        ? (newResult.data || []).map((post: any) => ({
-            id: String(post.id),
-            title: post.title || "Untitled post",
-            slug: post.slug || "",
-            excerpt: post.excerpt ?? null,
-            content: post.body ?? post.content ?? "",
-            body: post.body ?? post.content ?? "",
-            published: post.published !== false,
-            featured_image: post.cover_url ?? post.featured_image ?? null,
-            category: post.category ?? "General",
-            tags: post.tags ?? [],
-            seo_title: post.seo_title ?? null,
-            seo_description: post.seo_description ?? null,
-            created_at: post.created_at,
-            updated_at: post.updated_at,
-            source: "blog_posts",
-          }))
-        : [];
-
-      // Prefer the newer blog_posts record when the same slug exists
-      // in both tables, avoiding duplicate cards in the admin list.
-      const merged = new Map<string, PostRecord>();
-      for (const post of oldPosts) {
-        merged.set(post.slug || post.id, post);
-      }
-      for (const post of newPosts) {
-        merged.set(post.slug || post.id, post);
-      }
-
-      if (oldResult.error && newResult.error) {
-        throw new Error(
-          `Unable to load posts: ${oldResult.error.message}; ${newResult.error.message}`,
-        );
-      }
-
-      return Array.from(merged.values()).sort((a, b) =>
-        String(b.created_at || "").localeCompare(String(a.created_at || "")),
-      );
+      return (data || []).map((post) => ({
+        id: post.id,
+        title: post.title,
+        slug: post.slug,
+        excerpt: post.excerpt,
+        content: post.body,
+        body: post.body,
+        published: post.published,
+        featured_image: post.cover_url,
+        category: post.category,
+        tags: post.tags,
+        seo_title: post.seo_title,
+        seo_description: post.seo_description,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
+      }));
     },
   });
 
@@ -1679,31 +1620,9 @@ function PostsPanel() {
       updated_at: new Date().toISOString(),
     };
 
-    const editingExisting = editId
-      ? (data || []).find((post) => post.id === editId)
-      : null;
-
-    const result = editId && editingExisting?.source === "posts"
-      ? await supabase
-          .from("posts")
-          .update({
-            title: payload.title,
-            slug: payload.slug,
-            excerpt: payload.excerpt,
-            content: payload.body,
-            published: payload.published,
-            published_at: payload.published_at,
-            featured_image: payload.cover_url,
-            category: payload.category,
-            tags: payload.tags,
-            seo_title: payload.seo_title,
-            seo_description: payload.seo_description,
-            updated_at: payload.updated_at,
-          })
-          .eq("id", editId)
-      : editId
-        ? await supabase.from("blog_posts").update(payload).eq("id", editId)
-        : await supabase.from("blog_posts").insert(payload);
+    const result = editId
+      ? await supabase.from("blog_posts").update(payload).eq("id", editId)
+      : await supabase.from("blog_posts").insert(payload);
 
     setSaving(false);
 
@@ -1728,9 +1647,8 @@ function PostsPanel() {
   async function deletePost(id: string) {
     if (!confirm("Delete this blog post permanently?")) return;
 
-    const existing = (data || []).find((post) => post.id === id);
     const { error } = await supabase
-      .from(existing?.source === "posts" ? "posts" : "blog_posts")
+      .from("blog_posts")
       .delete()
       .eq("id", id);
 
@@ -1746,7 +1664,7 @@ function PostsPanel() {
   async function togglePost(post: PostRecord) {
     const next = !post.published;
     const { error } = await supabase
-      .from(post.source === "posts" ? "posts" : "blog_posts")
+      .from("blog_posts")
       .update({
         published: next,
         published_at: next ? new Date().toISOString() : null,
@@ -1986,12 +1904,7 @@ function PostsPanel() {
                   {post.excerpt && <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">{post.excerpt}</div>}
                 </div>
                 <div className="text-xs text-muted-foreground">{post.category || "General"}</div>
-                <div><StatusBadge status={post.published ? "Published" : "Draft"} />
-                  {post.source === "posts" && (
-                    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
-                      OLD
-                    </span>
-                  )}</div>
+                <div><StatusBadge status={post.published ? "Published" : "Draft"} /></div>
                 <div className="flex justify-start gap-1 md:justify-end">
                   <button type="button" title="Publish / Draft" onClick={() => void togglePost(post)} className="grid size-8 place-items-center rounded-md border border-border hover:bg-secondary">{post.published ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button>
                   <button type="button" title="Edit" onClick={() => editPost(post)} className="grid size-8 place-items-center rounded-md border border-border hover:bg-secondary"><Edit className="size-4" /></button>
