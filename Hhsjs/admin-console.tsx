@@ -21,6 +21,7 @@ import {
   Upload,
   Image as ImageIcon,
   RefreshCw,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -818,14 +819,18 @@ function ToolsPanel() {
           (typeof cmsData.name === "string" && cmsData.name.trim()
             ? cmsData.name
             : cfg.customName) || tool.name,
-        category: cfg.category || tool.category,
+        category:
+        (typeof cmsData.category === "string" && cmsData.category.trim()
+          ? cmsData.category
+          : cfg.category) || tool.category,
         description:
           (typeof cmsData.description === "string" && cmsData.description.trim()
             ? cmsData.description
             : cfg.description) || tool.description || "",
         longDescription:
-          cfg.longDescription ||
-          (typeof cmsData.description === "string" ? cmsData.description : "") ||
+          (typeof cmsData.longDescription === "string" && cmsData.longDescription.trim()
+            ? cmsData.longDescription
+            : cfg.longDescription) ||
           tool.longDescription ||
           tool.description ||
           "",
@@ -892,23 +897,65 @@ function ToolsPanel() {
   }
 
   async function saveBuiltInTool() {
-    if (!editingSlug) return;
+    if (!editingSlug) {
+      toast.error("Calculator select nahi hai.");
+      return;
+    }
+
+    const cleanSlug = editingSlug.trim();
+
+    if (!cleanSlug) {
+      toast.error("Calculator slug missing hai.");
+      return;
+    }
+
+    if (name.trim().length < 3) {
+      toast.error("Calculator name is required.");
+      return;
+    }
+
+    if (!category.trim()) {
+      toast.error("Calculator category is required.");
+      return;
+    }
 
     setSaving(true);
 
     try {
+      const existingCms = cmsToolOverrides[cleanSlug];
+
+      const existingOverrideData =
+        existingCms?.override_data &&
+        typeof existingCms.override_data === "object" &&
+        !Array.isArray(existingCms.override_data)
+          ? existingCms.override_data
+          : {};
+
+      const existingSeo =
+        existingCms?.seo &&
+        typeof existingCms.seo === "object" &&
+        !Array.isArray(existingCms.seo)
+          ? existingCms.seo
+          : {};
+
       await saveCmsToolOverride({
-        toolSlug: editingSlug,
-        enabled: status === "Published" ? true : status === "Disabled" ? false : null,
+        toolSlug: cleanSlug,
+        enabled:
+          status === "Published"
+            ? true
+            : status === "Disabled"
+              ? false
+              : null,
         featured,
-        displayOrder: null,
+        displayOrder: existingCms?.display_order ?? null,
         overrideData: {
+          ...existingOverrideData,
           name: name.trim(),
           description: description.trim(),
           longDescription: longDescription.trim(),
           category: category.trim(),
         },
-        seo: {},
+        seo: existingSeo,
       });
 
       // Keep the legacy site_settings record in sync for older public/admin code.
@@ -916,7 +963,7 @@ function ToolsPanel() {
         .from("site_settings")
         .upsert(
           {
-            key: `tool_cfg_${editingSlug}`,
+            key: `tool_cfg_${cleanSlug}`,
             value: {
               customName: name.trim(),
               status:
@@ -928,7 +975,7 @@ function ToolsPanel() {
               description: description.trim(),
               longDescription: longDescription.trim(),
               featured,
-              category,
+              category: category.trim(),
             },
             updated_at: new Date().toISOString(),
           },
@@ -937,11 +984,18 @@ function ToolsPanel() {
 
       if (error) throw error;
 
-      toast.success("Calculator updated successfully.");
       await Promise.all([loadToolConfigs(), loadCmsToolOverrides()]);
+      await qc.invalidateQueries();
+
+      toast.success("Calculator updated successfully.");
       setMode("list");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update calculator.");
+      console.error("BTTOTEK calculator save error:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to update calculator.",
+      );
     } finally {
       setSaving(false);
     }
